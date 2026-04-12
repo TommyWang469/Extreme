@@ -1,0 +1,8 @@
+yfinance
+vaderSentiment
+textblob
+pandas
+numpy
+scikit-learn
+statsmodels
+matplotlib
