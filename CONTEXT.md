@@ -19,3 +19,5 @@ Does social media sentiment predict extreme crypto events?
 
 ## Pilot period
 February 2024, mentor's reference composite sentiment score was -6
+
+## Explination of each file and the conclusion of project so far
