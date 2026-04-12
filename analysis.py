@@ -33,15 +33,21 @@ print("Loading data …")
 events    = pd.read_csv(EVENTS_PATH,    parse_dates=["date"], index_col="date")
 sentiment = pd.read_csv(SENTIMENT_PATH, parse_dates=["date"], index_col="date")
 
-# ── 2. Merge on date (inner join: only dates with both series) ─────────────────
+# ── 2. Align both series to month-end period, then merge ──────────────────────
+# Both files are already monthly (resampled with "ME" = month-end).
+# Normalise the index to the same month-end anchor so the join works even if
+# one file's timestamps differ by a day due to weekends/holidays.
+events.index    = events.index.to_period("M").to_timestamp("M")
+sentiment.index = sentiment.index.to_period("M").to_timestamp("M")
+
 df = events[["extreme_binary"]].join(sentiment[[SENTIMENT_COL, "tb_polarity"]], how="inner")
 df.dropna(inplace=True)
-print(f"  Merged dataset: {len(df)} rows")
+print(f"  Merged dataset: {len(df)} monthly rows")
 
 if len(df) == 0:
     raise ValueError(
-        "No overlapping dates between sentiment_scores.csv and labeled_events.csv.\n"
-        "Make sure your articles cover dates present in price_data.csv."
+        "No overlapping months between sentiment_scores.csv and labeled_events.csv.\n"
+        "Make sure your articles cover months present in price_data.csv."
     )
 
 # ── 3. Prepare X and y ────────────────────────────────────────────────────────

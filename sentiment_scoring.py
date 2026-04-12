@@ -92,9 +92,22 @@ daily = (
         tb_subjectivity   = ("tb_subjectivity","mean"),
     )
     .reset_index()
+    .set_index("date")
 )
 
-# ── 5. Save ───────────────────────────────────────────────────────────────────
-daily.to_csv(OUT_PATH, index=False)
-print(f"Saved {len(daily)} daily rows → {OUT_PATH}")
-print(daily)
+# ── 5. Resample to monthly frequency (month-end) ──────────────────────────────
+# Each month gets one composite sentiment score averaged across all articles
+# that month. This aligns with the monthly event labels produced by
+# event_definition.py and gives ~48 observations over 2021-2024.
+monthly = daily.resample("ME").agg(
+    n_articles      = ("n_articles",     "sum"),
+    vader_compound  = ("vader_compound", "mean"),
+    tb_polarity     = ("tb_polarity",    "mean"),
+    tb_subjectivity = ("tb_subjectivity","mean"),
+)
+monthly.index.name = "date"
+
+# ── 6. Save ───────────────────────────────────────────────────────────────────
+monthly.to_csv(OUT_PATH)
+print(f"Saved {len(monthly)} monthly rows → {OUT_PATH}")
+print(monthly)

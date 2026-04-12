@@ -56,16 +56,31 @@ df["extreme_binary"] = (df["extreme_label"] != 0).astype(int)   # for logistic r
 # ── 6. Drop rows where forward return cannot be computed (tail + NaN rows) ────
 df.dropna(subset=["forward_return", "rolling_std"], inplace=True)
 
-# ── 7. Summary ────────────────────────────────────────────────────────────────
-n_pos    = (df["extreme_label"] ==  1).sum()
-n_neg    = (df["extreme_label"] == -1).sum()
-n_normal = (df["extreme_label"] ==  0).sum()
-print(f"\nExtreme event breakdown (±{SD_THRESH} SD threshold, {WINDOW}-day window):")
+# ── 7. Resample to monthly frequency ─────────────────────────────────────────
+# If ANY trading day in a month is labelled extreme, the month = 1.
+# Other columns use mean aggregation for reference.
+monthly = df.resample("ME").agg(
+    portfolio_ret  = ("portfolio_ret",  "mean"),
+    forward_return = ("forward_return", "mean"),
+    rolling_mean   = ("rolling_mean",   "mean"),
+    rolling_std    = ("rolling_std",    "mean"),
+    forward_zscore = ("forward_zscore", "mean"),
+    extreme_label  = ("extreme_label",  lambda x: x.loc[x.abs().idxmax()] if x.abs().max() > 0 else 0),
+    extreme_binary = ("extreme_binary", "max"),   # 1 if any day was extreme
+)
+monthly.index.name = "date"
+monthly.dropna(subset=["forward_return"], inplace=True)
+
+# ── 8. Summary ────────────────────────────────────────────────────────────────
+n_pos    = (monthly["extreme_label"] ==  1).sum()
+n_neg    = (monthly["extreme_label"] == -1).sum()
+n_normal = (monthly["extreme_label"] ==  0).sum()
+print(f"\nMonthly extreme event breakdown (±{SD_THRESH} SD threshold, {WINDOW}-day window):")
 print(f"  Extreme positive (+1): {n_pos}")
 print(f"  Extreme negative (-1): {n_neg}")
 print(f"  Normal          (  0): {n_normal}")
-print(f"  Base rate of extremes: {(n_pos + n_neg) / len(df):.1%}")
+print(f"  Base rate of extremes: {(n_pos + n_neg) / len(monthly):.1%}")
 
-# ── 8. Save ───────────────────────────────────────────────────────────────────
-df.to_csv(OUT_PATH)
-print(f"\nSaved {len(df)} rows → {OUT_PATH}")
+# ── 9. Save ───────────────────────────────────────────────────────────────────
+monthly.to_csv(OUT_PATH)
+print(f"\nSaved {len(monthly)} monthly rows → {OUT_PATH}")
