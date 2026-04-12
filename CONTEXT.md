@@ -3,7 +3,7 @@
 ## Research question
 Does social media sentiment predict extreme crypto events?
 
-## Methodology (agreed with mentor)
+## Methodology 
 - Portfolio: 50% BTC + 50% ETH, VWAP-based daily returns
 - Sentiment tool: VADER (primary), TextBlob (validation)
 - Article source: 12 salient articles per period (a16z Crypto, CoinDesk)
