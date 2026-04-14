@@ -27,6 +27,7 @@ Downloads historical daily price data for BTC and ETH from Yahoo Finance coverin
 
 **sentiment_scoring.py**
 Reads data/articles.txt, where each line contains a date and an article text separated by a tab. It scores every article using two tools: VADER (the primary tool, which gives a compound score between -1 and +1 measuring overall sentiment) and TextBlob (used as a validation check, giving a polarity score on the same scale). Articles are then grouped and averaged by month to produce one composite sentiment score per month. This monthly score is the predictor variable in the regression. Output is saved to data/sentiment_scores.csv.
+Linear weighted moving average VS exponential weighted
 
 **event_definition.py**
 Takes the daily portfolio returns from price_data.csv and computes the 3-month (63 trading day) forward return for each date — meaning, how much the portfolio gained or lost over the next three months from that point. It then calculates a rolling mean and rolling standard deviation of those forward returns. Any month where the forward return exceeds ±2.5 standard deviations from the rolling mean is flagged as an extreme event (binary label = 1), otherwise normal (label = 0). The daily data is then resampled to monthly frequency, where a month is labelled extreme if any single day within it was extreme. Output is saved to data/labeled_events.csv.
