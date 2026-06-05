@@ -112,14 +112,16 @@ def main():
     df = score(df)
     monthly = monthly_composites(df)
     monthly.to_csv(OUT_PATH)
-    print(f"\nSaved {len(monthly)} monthly rows → {OUT_PATH}")
-    print(monthly.round(3).to_string())
 
-    # Quick linear-vs-exponential divergence check
+    # Compact summary — full table is in the CSV, no need to dump 45 rows.
     exp_col = f"vader_exp_hl{HALF_LIFE_DAYS}"
     diff = (monthly[exp_col] - monthly["vader_linear"]).abs().mean()
-    print(f"\nMean |exp − linear| divergence: {diff:.4f}  "
-          f"(0 ⇒ weighting makes no difference; larger ⇒ recency matters)")
+    print(f"Saved {len(monthly)} monthly rows → {OUT_PATH}")
+    print(f"  date range     : {monthly.index.min():%Y-%m} → {monthly.index.max():%Y-%m}")
+    print(f"  total articles : {int(monthly['n_articles'].sum())} "
+          f"(median {monthly['n_articles'].median():.0f}/month)")
+    print(f"  mean |exp − linear| divergence: {diff:.4f} "
+          f"(larger ⇒ recency weighting matters more)")
 
 
 if __name__ == "__main__":
