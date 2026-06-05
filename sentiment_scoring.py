@@ -1,113 +1,126 @@
 """
 sentiment_scoring.py
-Loads article texts from data/articles.txt (one article per line),
-scores each with VADER (primary) and TextBlob (validation), and saves
-a composite sentiment score to data/sentiment_scores.csv.
+Scores crypto news with VADER (primary) and TextBlob (validation), then collapses
+to one monthly composite score per month. Saves data/sentiment_scores.csv.
 
-Expected format of articles.txt:
-    <ISO-date>\t<article text>
-e.g.:
-    2024-02-01\tBitcoin surges as ETF inflows accelerate…
-    2024-02-03\tCrypto market faces headwinds from Fed minutes…
+SPRINT 1 CHANGES (improvement.md T8)
+─────────────────────────────────────────────────────────────────────────────
+  • LINEAR vs EXPONENTIAL weighting (mentor's hint). Within each month we now
+    produce two composites:
+        vader_linear   – equal-weight mean of every article in the month
+        vader_exp_hlN  – exponentially-weighted mean, half-life HALF_LIFE_DAYS,
+                         so articles nearer month-end count more (they are the
+                         freshest signal for predicting the *next* month).
+  • SNIPPET scoring (mentor's hint). Sentiment lives in the headline + lede, not
+    the diluted body. If SCORE_SNIPPET is True we score only the first
+    SNIPPET_CHARS characters of each article. Set False to score full text.
+  • Input auto-detects format: prefers data/articles_scraped.csv (date,source,
+    url,headline,snippet) produced by scrape_articles.py; falls back to the
+    legacy tab-separated data/articles.txt.
 
-If no date column is present the script assigns sequential dates starting
-from a configurable START_DATE so you can still test the pipeline.
+Backward compatibility: the column `vader_compound` is kept as an alias of
+`vader_linear` so the existing analysis.py keeps working unchanged.
 """
 
+import os
+import numpy as np
 import pandas as pd
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from textblob import TextBlob
-import os
 
 # ── Settings ──────────────────────────────────────────────────────────────────
-ARTICLES_PATH = "data/articles.txt"
-OUT_PATH      = "data/sentiment_scores.csv"
-START_DATE    = "2024-02-01"   # fallback start date if file has no date column
+SCRAPED_PATH   = "data/articles_scraped.csv"   # preferred input if present
+LEGACY_PATH    = "data/articles.txt"           # fallback input
+OUT_PATH       = "data/sentiment_scores.csv"
+
+SCORE_SNIPPET    = True    # score only the lede (mentor: "Snippet")
+SNIPPET_CHARS    = 240     # ~ headline + first sentence
+HALF_LIFE_DAYS   = 7       # exponential-weight half-life within a month
 
 os.makedirs("data", exist_ok=True)
 
-# ── 1. Load articles ──────────────────────────────────────────────────────────
-print("Loading articles …")
-rows = []
-with open(ARTICLES_PATH, "r", encoding="utf-8") as f:
-    for line in f:
-        line = line.strip()
-        if not line:
-            continue
-        # Try to parse a leading date (tab-separated)
-        parts = line.split("\t", maxsplit=1)
-        if len(parts) == 2:
-            date_str, text = parts
-        else:
-            date_str, text = None, parts[0]
-        rows.append({"date": date_str, "text": text})
 
-df = pd.DataFrame(rows)
+# ── 1. Load articles (scraped CSV preferred, legacy txt fallback) ─────────────
+def load_articles() -> pd.DataFrame:
+    if os.path.exists(SCRAPED_PATH):
+        print(f"Loading scraped corpus → {SCRAPED_PATH}")
+        df = pd.read_csv(SCRAPED_PATH)
+        # Build text from headline + snippet; tolerate missing columns
+        head = df.get("headline", pd.Series([""] * len(df))).fillna("")
+        snip = df.get("snippet",  pd.Series([""] * len(df))).fillna("")
+        df["text"] = (head + ". " + snip).str.strip()
+        df = df[["date", "text"]]
+    else:
+        print(f"Scraped corpus not found; loading legacy → {LEGACY_PATH}")
+        rows = []
+        with open(LEGACY_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split("\t", maxsplit=1)
+                date_str, text = (parts if len(parts) == 2 else (None, parts[0]))
+                rows.append({"date": date_str, "text": text})
+        df = pd.DataFrame(rows)
 
-# Assign sequential dates if none provided
-if df["date"].isna().all():
-    dates = pd.date_range(start=START_DATE, periods=len(df), freq="D")
-    df["date"] = dates.strftime("%Y-%m-%d")
+    df["date"] = pd.to_datetime(df["date"])
+    if SCORE_SNIPPET:
+        df["text"] = df["text"].str.slice(0, SNIPPET_CHARS)
+    df = df.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+    print(f"  {len(df)} articles, {df['date'].min().date()} → {df['date'].max().date()}"
+          f"  (snippet={'on' if SCORE_SNIPPET else 'off'})")
+    return df
 
-df["date"] = pd.to_datetime(df["date"])
-print(f"  {len(df)} articles loaded, spanning {df['date'].min().date()} → {df['date'].max().date()}")
 
-# ── 2. VADER scoring ──────────────────────────────────────────────────────────
-print("Scoring with VADER …")
-vader = SentimentIntensityAnalyzer()
+# ── 2. Sentiment scoring ──────────────────────────────────────────────────────
+def score(df: pd.DataFrame) -> pd.DataFrame:
+    vader = SentimentIntensityAnalyzer()
+    df["vader_compound"] = df["text"].apply(lambda t: vader.polarity_scores(t)["compound"])
+    df["tb_polarity"]    = df["text"].apply(lambda t: TextBlob(t).sentiment.polarity)
+    return df
 
-def vader_scores(text):
-    s = vader.polarity_scores(text)
-    return pd.Series({
-        "vader_neg":      s["neg"],
-        "vader_neu":      s["neu"],
-        "vader_pos":      s["pos"],
-        "vader_compound": s["compound"],   # primary metric  [-1, +1]
-    })
 
-df = df.join(df["text"].apply(vader_scores))
+# ── 3. Monthly composites: linear AND exponential weighting ───────────────────
+def monthly_composites(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["month"] = df["date"].dt.to_period("M")
+    # month-end timestamp per row, and days-before-month-end for the decay weight
+    month_end = df["month"].dt.to_timestamp("M")
+    days_before_end = (month_end - df["date"]).dt.days.clip(lower=0)
+    decay = np.log(2) / HALF_LIFE_DAYS
+    df["w_exp"] = np.exp(-decay * days_before_end)
 
-# ── 3. TextBlob scoring (validation) ─────────────────────────────────────────
-print("Scoring with TextBlob …")
+    out = []
+    for period, g in df.groupby("month"):
+        w = g["w_exp"].to_numpy()
+        v = g["vader_compound"].to_numpy()
+        out.append({
+            "date":          period.to_timestamp("M"),
+            "n_articles":    len(g),
+            "vader_linear":  v.mean(),
+            f"vader_exp_hl{HALF_LIFE_DAYS}": np.average(v, weights=w),
+            "tb_polarity":   g["tb_polarity"].mean(),
+        })
+    monthly = pd.DataFrame(out).set_index("date").sort_index()
+    # Backward-compat alias used by analysis.py
+    monthly["vader_compound"] = monthly["vader_linear"]
+    return monthly
 
-def textblob_scores(text):
-    blob = TextBlob(text)
-    return pd.Series({
-        "tb_polarity":     blob.sentiment.polarity,      # [-1, +1]
-        "tb_subjectivity": blob.sentiment.subjectivity,  # [0, 1]
-    })
 
-df = df.join(df["text"].apply(textblob_scores))
+def main():
+    df = load_articles()
+    df = score(df)
+    monthly = monthly_composites(df)
+    monthly.to_csv(OUT_PATH)
+    print(f"\nSaved {len(monthly)} monthly rows → {OUT_PATH}")
+    print(monthly.round(3).to_string())
 
-# ── 4. Composite score: average VADER compound across articles per date ────────
-# Mentor's reference score for Feb 2024 is -6 on a 0–100-style scale;
-# we keep the raw [-1, +1] VADER compound here and note that scaling by 100
-# would reproduce that convention.
-daily = (
-    df.groupby("date")
-    .agg(
-        n_articles        = ("text",          "count"),
-        vader_compound    = ("vader_compound", "mean"),   # composite VADER
-        tb_polarity       = ("tb_polarity",    "mean"),   # composite TextBlob
-        tb_subjectivity   = ("tb_subjectivity","mean"),
-    )
-    .reset_index()
-    .set_index("date")
-)
+    # Quick linear-vs-exponential divergence check
+    exp_col = f"vader_exp_hl{HALF_LIFE_DAYS}"
+    diff = (monthly[exp_col] - monthly["vader_linear"]).abs().mean()
+    print(f"\nMean |exp − linear| divergence: {diff:.4f}  "
+          f"(0 ⇒ weighting makes no difference; larger ⇒ recency matters)")
 
-# ── 5. Resample to monthly frequency (month-end) ──────────────────────────────
-# Each month gets one composite sentiment score averaged across all articles
-# that month. This aligns with the monthly event labels produced by
-# event_definition.py and gives ~48 observations over 2021-2024.
-monthly = daily.resample("ME").agg(
-    n_articles      = ("n_articles",     "sum"),
-    vader_compound  = ("vader_compound", "mean"),
-    tb_polarity     = ("tb_polarity",    "mean"),
-    tb_subjectivity = ("tb_subjectivity","mean"),
-)
-monthly.index.name = "date"
 
-# ── 6. Save ───────────────────────────────────────────────────────────────────
-monthly.to_csv(OUT_PATH)
-print(f"Saved {len(monthly)} monthly rows → {OUT_PATH}")
-print(monthly)
+if __name__ == "__main__":
+    main()

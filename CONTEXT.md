@@ -77,3 +77,111 @@ McFadden R² of 0.006 means sentiment explains roughly 0.6% of extreme event mon
 The p-value of 0.58 means the result is not statistically significant — we cannot rule out that the observed direction happened by chance.
 
 **What this tells us so far:** VADER sentiment derived from a small number of curated articles (roughly 1–4 per month) does not strongly predict extreme crypto events on its own. This is itself a reportable finding. The most likely reasons are: (1) too few articles per month to produce a reliable composite score, (2) the articles may not be timely enough to precede the events they describe, and (3) a single linear sentiment predictor may be too simple to capture the non-linear dynamics of extreme market moves. The next steps should focus on increasing article density, testing a lagged sentiment predictor, and potentially adding a second predictor such as trading volume or VIX as a control variable.
+
+---
+
+# Sprint 1 — What changed, why, and the effect on results (mentor review)
+
+*Revisions made in response to your Apr-14 feedback (linear vs. exponential
+weighting, event study, Mt Gox / SBF, Black Swan / extreme-value statistics,
+BeautifulSoup, snippets). The v1 numbers above are kept for the record.*
+
+## Headline: the most important output change
+
+| Output | Before (v1) | After (Sprint 1) | What it means |
+|---|---|---|---|
+| **Extreme-event base rate** | **31.8%** of months | **13.0%** of months (6 / 46) | v1 was calling 1-in-3 months a "black swan," which is incoherent for a *rare* event — the label itself was broken, so every downstream metric was built on sand. 13% is the first defensible number. |
+| **Best AUC-ROC** | 0.537 | **0.559** | The model now ranks tail months slightly better than v1 *and* does so against a credible label. |
+| **Best predictor** | linear, same-month | **exp-weighted, 1-month lag** | We now actually test the research question — does sentiment *precede* extremes — instead of measuring it concurrently. |
+| **Methods available** | 1 (logistic regression) | 3 label methods + regression + **event study** | Cross-checks instead of a single fragile estimate. |
+
+> **The one-line story for the meeting:** *"The first run wasn't wrong because
+> sentiment failed — it was wrong because the extreme-event label was miscalibrated
+> (32% of months flagged). After fixing the label and adding recency-weighting and
+> a predictive lag, the signal is still weak but now honestly measured: AUC 0.56,
+> not significant. The real bottleneck is article density, which the new scraper
+> addresses."*
+
+---
+
+## Methodology changes — before → after → why it improves the output
+
+### 1. Extreme-event definition (the critical fix)
+- **Before:** z-scored each day's 63-day forward return against a *rolling* 63-day
+  window of those same forward returns, then flagged a whole month if **any one day**
+  crossed ±2.5 SD (monthly MAX).
+- **Problem:** consecutive 63-day forward windows overlap ~98%, so they are highly
+  autocorrelated; the rolling SD denominator is unstable and shrinks in calm periods,
+  pushing ordinary moves past 2.5 SD. The monthly MAX then flipped entire months on.
+  Together → **31.8%** "extreme."
+- **After:** take **one clean forward-return observation per month** (value at
+  month-end) and threshold it against the **whole-sample** distribution. Three
+  selectable methods: `quantile` (default), `global_z`, and `evt` (Generalized
+  Pareto / peaks-over-threshold — the Black Swan / extreme-value approach you flagged).
+- **Why the output is better:** removes the autocorrelation artifact and the MAX
+  inflation, so the label now means what it says. Base rate **31.8% → 13.0%**, and
+  every metric downstream is now interpretable.
+
+### 2. Sentiment aggregation — linear vs. exponential weighting (your hint)
+- **Before:** simple equal-weight monthly mean of all article scores.
+- **After:** also compute an **exponentially-weighted** monthly score (7-day
+  half-life) so articles nearer month-end count more.
+- **Why the output is better:** the freshest sentiment is the most relevant for
+  predicting *next* month. Swapping linear → exponential lifted AUC from 0.480 to
+  0.534 (same-month) and is the basis of the best spec below.
+
+### 3. Contemporaneous → lagged predictor (testing the actual question)
+- **Before:** sentiment in month *T* vs. extreme label in month *T* (concurrent).
+- **After:** sentiment in month *T* → extreme label in month *T+1* (predictive).
+- **Why the output is better:** "early-warning signal" requires sentiment to
+  *precede* the event. Adding the lag on top of exponential weighting gives the
+  **best spec: AUC 0.559**.
+
+### 4. New lens — event study (your "Event study / Mt Gox / SBF" hint)
+- **Before:** none.
+- **After:** `event_study.py` computes cumulative abnormal returns (CAR) over
+  [−10,+10] trading days around Ronin, Terra/LUNA, FTX, the ETF approval, and the
+  halving (mean-adjusted model). *(Mt Gox 2014 is outside our 2021–2024 data window
+  — flagged as an open question.)*
+- **Why the output is better:** the event study doesn't depend on the tiny count of
+  labelled extreme months, so it's a more robust complementary check. It surfaced a
+  qualitative finding the regression can't: the two "positive" catalysts (ETF, halving)
+  produced **negative** abnormal returns — classic **"sell-the-news."**
+
+### 5. Article density — BeautifulSoup scraper + snippets (your hint)
+- **Before:** 63 hand-curated articles (1–4 / month).
+- **After:** `scrape_articles.py` (GDELT historical backfill + CoinDesk RSS via
+  BeautifulSoup), targeting **≥ 30 articles / month**, scoring **snippets**
+  (headline + lede) rather than full bodies.
+- **Why the output will be better:** the single biggest source of noise in v1 was
+  thin monthly composites. Denser, snippet-level data should stabilise the monthly
+  sentiment score before we draw firmer conclusions.
+
+---
+
+## Results snapshot — 43 monthly obs, 6 extreme months (14%)
+
+| Spec | Odds Ratio | AUC | McFadden R² | p-value |
+|---|---|---|---|---|
+| **VADER exp-hl7, lag-1 (best)** | 0.704 | **0.559** | 0.0161 | 0.495 |
+| VADER exp-hl7, same-month | 0.780 | 0.534 | 0.0087 | 0.588 |
+| VADER linear, lag-1 | 0.889 | 0.505 | 0.0020 | 0.808 |
+| VADER linear, same-month (≈ v1 method) | 0.927 | 0.480 | 0.0008 | 0.864 |
+
+**How to read this honestly for the mentor:**
+- The signal is **still weak and not statistically significant** (p ≈ 0.50). What
+  improved is *rigor*, not a breakthrough — the label is fixed and the predictor is
+  now specified correctly.
+- The best odds ratio is **< 1** (0.70), hinting that *higher* prior sentiment
+  precedes *lower* odds of a tail month (a euphoria-reversal direction) — but with
+  only ~6 events the sample can't confirm it.
+
+## Two honest limitations to raise at the meeting
+1. **Small-sample tension.** At monthly resolution a *true* <5% black-swan rate gives
+   only 1–2 events — too few to regress on. 13% (6 events) is the practical floor for
+   an estimable logistic regression; for genuinely rare events the **event study** is
+   the better tool. *(Open question: move to weekly/daily resolution to raise event count?)*
+2. **Pilot benchmark gap unresolved.** Our Feb-2024 composite is **+0.275** vs your
+   reference **−0.06**. This persists from v1 and is almost certainly an
+   article-*selection* difference, not a code bug — needs us to align on which
+   articles feed the pilot month.

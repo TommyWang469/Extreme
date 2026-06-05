@@ -1,6 +1,6 @@
 # Project Handoff Note
 **Research:** Social Media Sentiment as a Predictor of Extreme Crypto Events
-**Status:** Pipeline complete, first results obtained, ready for improvement
+**Status:** Sprint 1 complete — pipeline revised per mentor feedback (see Sprint 1 section at bottom, improvement.md, and outputs/sprint1_summary.md)
 
 ---
 
@@ -74,6 +74,34 @@ The mentor's reference composite VADER score for February 2024 was −6 (on a ×
 ## How to continue in a new conversation
 
 1. Share this file and `CONTEXT.md` with your new Claude session as context
-2. The full pipeline is in `/Users/hongqingwang/Documents/GitHub/Extreme/`
-3. Run order: `data_collection.py` → `sentiment_scoring.py` → `event_definition.py` → `analysis.py`
-4. The most impactful next task is increasing article density in `data/articles.txt`
+2. The full pipeline is in `/Users/hongqingwang/Documents/GitHub/Github Extreme/`
+3. Run order: `data_collection.py` → `scrape_articles.py` → `sentiment_scoring.py` → `event_definition.py` → `analysis.py` → `event_study.py`
+4. The most impactful next task is increasing article density (run `scrape_articles.py`, possibly 2–3× to fill GDELT-rate-limited months)
+
+---
+
+## Sprint 1 update (improvement.md T6–T10)
+
+**What was done**
+- **Fixed the broken extreme-event label.** v1 flagged 31.8% of months as extreme
+  (rolling-SD on overlapping forward returns + monthly MAX). Rewritten to one
+  clean obs/month thresholded against the whole-sample distribution. New base rate
+  **13.0%**. Three selectable methods: `quantile` (default), `global_z`, `evt` (GPD).
+- **sentiment_scoring.py:** added exponential weighting (7-day half-life) and
+  snippet-only scoring; auto-detects `articles_scraped.csv`, falls back to `articles.txt`.
+- **analysis.py:** now compares 4 predictor specs (linear/exp × contemporaneous/lag-1),
+  prints a ranked table, and checks the Feb-2024 pilot benchmark.
+- **event_study.py (new):** CAR around Ronin / Terra / FTX / ETF / halving.
+- **scrape_articles.py (new):** GDELT historical backfill + CoinDesk RSS (BeautifulSoup),
+  cached + throttled, targets ≥30 articles/month → `data/articles_scraped.csv`.
+
+**Results:** best spec (exp-weighted, lag-1) AUC 0.480→0.559; still not significant
+(low power at ~6 events). Event study shows "sell-the-news" on ETF/halving. Full
+numbers in `outputs/sprint1_summary.md`.
+
+**Open items / Sprint 2**
+- Run `scrape_articles.py` to completion (re-run to fill rate-limited months), then
+  re-run sentiment→analysis on the dense corpus.
+- Reconcile the pilot Feb-2024 gap (ours +0.275 vs mentor −0.06) — article selection.
+- Add a second predictor (volume / VIX) and NAND-style signal combination.
+- Decide event-study vs. regression as primary after watching the mentor's video.

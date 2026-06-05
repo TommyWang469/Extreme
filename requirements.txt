@@ -6,3 +6,7 @@ numpy
 scikit-learn
 statsmodels
 matplotlib
+scipy
+requests
+beautifulsoup4
+lxml

@@ -1,0 +1,3 @@
+data/raw_html/
+__pycache__/
+*.pyc
