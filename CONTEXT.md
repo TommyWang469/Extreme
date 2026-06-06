@@ -95,13 +95,6 @@ BeautifulSoup, snippets). The v1 numbers above are kept for the record.*
 | **Best predictor** | linear, same-month | **exp-weighted, 1-month lag** | We now actually test the research question — does sentiment *precede* extremes — instead of measuring it concurrently. |
 | **Methods available** | 1 (logistic regression) | 3 label methods + regression + **event study** | Cross-checks instead of a single fragile estimate. |
 
-> **The one-line story for the meeting:** *"The first run wasn't wrong because
-> sentiment failed — it was wrong because the extreme-event label was miscalibrated
-> (32% of months flagged). After fixing the label and adding recency-weighting and
-> a predictive lag, the signal is still weak but now honestly measured: AUC 0.56,
-> not significant. The real bottleneck is article density, which the new scraper
-> addresses."*
-
 ---
 
 ## Methodology changes — before → after → why it improves the output
