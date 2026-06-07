@@ -88,12 +88,41 @@ BeautifulSoup, snippets). The v1 numbers above are kept for the record.*
 
 ## Headline: the most important output change
 
-| Output | Before (v1) | After (Sprint 1) | What it means |
-|---|---|---|---|
-| **Extreme-event base rate** | **31.8%** of months | **13.0%** of months (6 / 46) | v1 was calling 1-in-3 months a "black swan," which is incoherent for a *rare* event — the label itself was broken, so every downstream metric was built on sand. 13% is the first defensible number. |
-| **Best AUC-ROC** | 0.537 | **0.559** | The model now ranks tail months slightly better than v1 *and* does so against a credible label. |
-| **Best predictor** | linear, same-month | **exp-weighted, 1-month lag** | We now actually test the research question — does sentiment *precede* extremes — instead of measuring it concurrently. |
-| **Methods available** | 1 (logistic regression) | 3 label methods + regression + **event study** | Cross-checks instead of a single fragile estimate. |
+exp-hl7 — "exponentially weighted, 7-day half-life"
+lag — "use last month's sentiment to predict this month"
+
+### A. Logistic-regression metrics (sentiment → extreme event)
+
+| Metric | What it indicates (reminder) | v1 (before) | Now (best spec) | Direction |
+|---|---|---|---|---|
+| **Odds Ratio** | How much the odds of an extreme month multiply per 1-unit rise in sentiment. **1.0 = no effect**; >1 = higher sentiment → more extremes; <1 = higher sentiment → fewer extremes. | 1.20 | **0.62** | Flipped below 1 → now suggests *higher* prior sentiment precedes *fewer* tail months (a euphoria-reversal direction). More informative, but see p-value. |
+| **AUC-ROC** | How well sentiment *ranks* months by extremeness. **0.5 = random coin-flip**, 1.0 = perfect. | 0.537 | **0.600** | ⬆ **Better.** Moved from "barely above random" to "modest but real" ranking ability. |
+| **McFadden R²** | Share of the variation in extreme months that sentiment explains. **0 = explains nothing**; >0.2 = strong fit for logistic models. | 0.0057 | **0.0270** | ⬆ **Better** (~5× higher), but still very low — sentiment alone explains very little. |
+| **p-value (β₁)** | Chance the effect is just random noise. **<0.05 = statistically significant**; higher = can't rule out chance. | 0.583 | **0.380** | ⬆ Lower (better) but still **not significant** — we cannot yet claim the effect is real. |
+
+**One-line conclusion** every metric moved in the right direction (AUC up, R²
+up, p-value down, odds ratio now economically interpretable), but the result is still not statistically significant — the binding constraint is too few extreme events (only 6),
+not data quality.
+
+### B. Event-study metrics (CAR around 5 known shocks)
+
+*CAR = cumulative abnormal return over the [−10, +10] trading-day window around each
+event — i.e. how far the portfolio moved versus its normal baseline. `pre_sentiment` =
+average sentiment in the days just before the event. This lens does **not** depend on the
+tiny count of extreme months, so it's the more robust check.*
+
+| Event | Date | Expected | CAR (actual move) | Pre-event sentiment |
+|---|---|---|---|---|
+| Ronin bridge hack | 2022-03-23 | − | **+0.330** (opposite) | +0.047 |
+| Terra/LUNA collapse | 2022-05-09 | − | **−0.344** ✓ | +0.071 |
+| FTX bankruptcy (SBF) | 2022-11-11 | − | **−0.321** ✓ | −0.059 |
+| Bitcoin ETF approval | 2024-01-10 | + | **−0.079** (opposite) | +0.248 |
+| Bitcoin halving | 2024-04-20 | + | **−0.234** (opposite) | +0.026 |
+
+- **CAR matched the expected direction in 2 / 5 events.**
+- **corr(pre-event sentiment, CAR) = +0.221** (n = 5 — illustrative only, far too few to test).
+- **Qualitative finding the regression can't show:** the two "good news" catalysts (ETF
+  approval, halving) both produced **negative** CAR — classic **"sell-the-news."**
 
 ---
 
