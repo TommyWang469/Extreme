@@ -31,7 +31,72 @@ the questions worth pursuing next. (For what's already built, see `CONTEXT.md`.)
 
 ---
 
-## 2. What to improve next (ranked by leverage)
+## 2. Sprint 2 plan — originality + significance (decided Jun 2026)
+
+> Driven by the mentor call (Jun 2026) and a literature scan. Two directions:
+> (A) FinBERT sentiment, (B) an **original volatility calculation** — the novelty
+> judges look for. "Unique and significant" are the two goals.
+
+### 2.1 What's already taken (literature scan, Jun 2026)
+
+| Crowded — do NOT claim as novel | Where |
+|---|---|
+| VADER/FinBERT + LSTM/GRU price prediction | FinBERT-BiLSTM (arXiv 2411.12748, Applied Intelligence 2026); many Kaggle/GitHub repos |
+| Sentiment → price *jumps* via logistic regression | "Not all words are equal: Sentiment and jumps in the cryptocurrency market" (J. Int. Fin. Markets 2023) |
+| Sentiment inside GARCH / stochastic-vol models | BERT+GARCH review (arXiv 2510.16503); sentiment-driven stochastic vol (arXiv 1906.00059) |
+| Realized semivariance + Twitter sentiment for jump prediction | ScienceDirect 2026 (realized metrics + sentiment via ML) |
+
+**The open gap (verified):** drawdown *recovery time* appears in the literature only
+as a descriptive statistic (how long to climb back to the peak). Nobody uses recovery
+persistence to (a) **weight a volatility measure** or (b) **define the extreme-event
+label**. That gap matches exactly the mentor's hints: lower partial moments / Sortino,
+"flash crash ≠ extreme move," "climbing back 50/80%," stairs-up-elevator-down asymmetry.
+
+### 2.2 The original contribution: Recovery-Weighted Downside Volatility (RWDV)
+
+Standard deviation treats a −8% day that bounces back tomorrow the same as a −8% day
+that starts a six-month bear market. RWDV does not:
+
+- For each **down** day *t* (only downside — a lower partial moment, per Sortino logic):
+  find τ_t = trading days until the portfolio claws back 50% of that day's loss,
+  capped at H (=10) days. Weight w_t = τ_t / H ∈ (0,1].
+- **RWDV** = √( 252 · mean over window of [ w_t · r_t² | r_t < 0 ] )
+- Flash crash (recovers next day) → w ≈ 0.1 → nearly ignored. Sustained decline
+  (no recovery within H days) → w = 1 → full weight. *"Bruises fade; scars count."*
+- **No look-ahead:** as a trailing predictor at time T, the window only includes
+  down-days whose H-day recovery horizon is fully resolved by T (lag by H).
+
+**Scar-event label (the redefined "extreme event"):** a week is an extreme-DOWN event
+if next week's return is in the bottom decile AND the drop is *not* 50%-recovered
+within 15 trading days of the trough. Extreme-UP labelled separately (top decile) —
+up/down modelled asymmetrically per the mentor. Weekly resolution → ~208 obs and
+~3× the events of the monthly design → real statistical power.
+
+### 2.3 The multi-factor model (mentor's whiteboard, verbatim)
+
+One variable alone can't predict ("height alone doesn't predict jump ability"):
+
+| Factor | Role |
+|---|---|
+| FinBERT sentiment (exp-weighted, lag-1) | the variable under test |
+| Trailing RWDV | volatility clustering control — *and* our novel metric |
+| ARKF (FinTech ETF) trailing 4-week return | the mentor's FinTech-proxy factor |
+| QQQ trailing 4-week return | broad tech-market factor |
+
+Logit: P(extreme-down week w+1) = f(factors at week w). Pre-registered primary test:
+the FinBERT coefficient, controlling for everything else. Ablations: VADER vs FinBERT,
+RWDV vs plain semideviation vs plain SD, with/without scar condition.
+Out-of-sample: train 2021–22, test 2023–24.
+
+### 2.4 Build order
+
+1. `finbert_scoring.py` — FinBERT (ProsusAI/finbert) on scraped headlines → weekly composites
+2. `build_features_v2.py` — ARKF/QQQ download + RWDV + scar labels → `data/dataset_weekly.csv`
+3. `analysis_v2.py` — multi-factor logit + ablation table + out-of-sample AUC
+
+---
+
+## 3. What to improve next (ranked by leverage)
 
 ### Highest leverage
 - **Q1. Raise the event count → go weekly/daily.** Monthly resolution caps us at

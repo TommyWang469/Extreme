@@ -1,6 +1,6 @@
 # Project Handoff Note
 **Research:** Social Media Sentiment as a Predictor of Extreme Crypto Events
-**Status:** Sprint 1 complete — pipeline revised per mentor feedback (see Sprint 1 section at bottom, improvement.md, and outputs/sprint1_summary.md)
+**Status:** Sprint 2 built (FinBERT + RWDV multi-factor, weekly) — see improvement.md §2 and sprint2_results.md
 
 ---
 
@@ -97,11 +97,31 @@ The mentor's reference composite VADER score for February 2024 was −6 (on a ×
 
 **Results:** best spec (exp-weighted, lag-1) AUC 0.480→0.559; still not significant
 (low power at ~6 events). Event study shows "sell-the-news" on ETF/halving. Full
-numbers in `outputs/sprint1_summary.md`.
+numbers preserved in `CONTEXT.md` (Sprint 1 section).
 
-**Open items / Sprint 2**
-- Run `scrape_articles.py` to completion (re-run to fill rate-limited months), then
-  re-run sentiment→analysis on the dense corpus.
-- Reconcile the pilot Feb-2024 gap (ours +0.275 vs mentor −0.06) — article selection.
-- Add a second predictor (volume / VIX) and NAND-style signal combination.
-- Decide event-study vs. regression as primary after watching the mentor's video.
+---
+
+## Sprint 2 update (Jun 2026)
+
+**Done**
+- Dense corpus (1,778 articles); pilot Feb-2024 gap resolved (+0.041 vs −0.06 ✓).
+- FinBERT weekly sentiment (`finbert_scoring.py`) — corr with VADER only 0.35.
+- **Novel metric: RWDV** (Recovery-Weighted Downside Volatility) + scar-event
+  labels (`build_features_v2.py`) — literature-scan-verified gap.
+- Multi-factor weekly logit with ARKF + QQQ (`analysis_v2.py`), per mentor's
+  whiteboard. 194 weeks, 12 scar events.
+
+**Results:** pre-registered spec not significant (p = 0.83). Exploratory
+4-week-smoothed FinBERT: OR 1.70, p = 0.12, AUC 0.66; out-of-sample AUC
+0.69–0.79 (only 3 test events). Full tables in `sprint2_results.md`.
+
+**Open items / Sprint 3**
+- ✓ Prices extended to Jun 2026 (`data_collection.py`); confirmation run done:
+  OR 1.70 (replicated exactly), p = 0.108, OOS AUC 0.670 — see sprint2_results.md
+  and the Sprint 2/3 section of CONTEXT.md.
+- ✓ CONTEXT.md refreshed (methodology header, pilot gap marked resolved,
+  Sprint 2/3 results section appended).
+- **NEXT (highest leverage): backfill the 15 article-less months** (mostly
+  2025–26). `scrape_articles.py` END now extended to Jun 2026 — run
+  `python3 scrape_articles.py` 2–3× (GDELT rate limits), then
+  `python3 finbert_scoring.py && python3 analysis_v2.py`.

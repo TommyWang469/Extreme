@@ -54,7 +54,7 @@ except ImportError:
 OUT_PATH        = "data/articles_scraped.csv"
 CACHE_DIR       = "data/raw_html"
 START           = dt.date(2021, 1, 1)
-END             = dt.date(2024, 12, 31)
+END             = dt.date(2026, 6, 12)   # Sprint 3: extended from 2024-12-31 to match price data
 ARTICLES_PER_MONTH = 40          # cap pulled per month from GDELT
 QUERY           = "(bitcoin OR ethereum OR crypto)"
 GDELT_THROTTLE  = 12.0           # seconds between GDELT calls. The documented

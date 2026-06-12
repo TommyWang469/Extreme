@@ -12,7 +12,7 @@ import os
 # ── Settings ──────────────────────────────────────────────────────────────────
 TICKERS   = ["BTC-USD", "ETH-USD"]
 START     = "2021-01-01"   # wide window so rolling SD has enough history
-END       = "2024-12-31"
+END       = "2026-06-12"   # Sprint 3: extended from 2024-12-31 (articles reach Jun 2026)
 OUT_PATH  = "data/price_data.csv"
 
 os.makedirs("data", exist_ok=True)

@@ -9,7 +9,7 @@ sentiment precedes those extremes — via both **logistic regression** and an
 **event study**. Framed as signal detection, **not** causal inference.
 
 > See `CONTEXT.md` for methodology + results, `improvement.md` for the roadmap and
-> open questions, and `outputs/sprint1_summary.md` for the latest numbers.
+> open questions, and `sprint2_results.md` for the latest numbers.
 
 ---
 
@@ -23,8 +23,11 @@ Github Extreme/
 ├── event_definition.py    # Step 4 — label extreme months (quantile / global_z / EVT)
 ├── analysis.py            # Step 5 — logistic regression (4 specs) + ROC + benchmark
 ├── event_study.py         # Step 6 — CAR around known shocks (Terra, FTX, ETF, halving)
+├── finbert_scoring.py     # Step 7 — FinBERT weekly sentiment (Sprint 2)
+├── build_features_v2.py   # Step 8 — RWDV + scar labels + ARKF/QQQ factors (Sprint 2)
+├── analysis_v2.py         # Step 9 — multi-factor weekly logit (Sprint 2)
 ├── requirements.txt
-├── CONTEXT.md  HANDOFF.md  improvement.md
+├── CONTEXT.md  HANDOFF.md  improvement.md  sprint2_results.md
 ├── data/
 │   ├── articles.txt           # legacy manual corpus (fallback input)
 │   ├── articles_scraped.csv   # produced by scrape_articles.py (preferred input)
@@ -34,8 +37,7 @@ Github Extreme/
 │   └── labeled_events.csv     # Step 4 output (~13% extreme rate)
 └── outputs/
     ├── roc_curve.png          # Step 5
-    ├── event_study_car.png    # Step 6
-    └── sprint1_summary.md
+    └── event_study_car.png    # Step 6
 ```
 
 ---
@@ -94,6 +96,14 @@ python3 event_study.py
 python3 scrape_articles.py      # may need 2–3 runs to fill GDELT-rate-limited months
 # then regenerate sentiment + results on the dense corpus:
 python3 sentiment_scoring.py && python3 analysis.py
+```
+
+### 4. Sprint 2 — FinBERT + RWDV multi-factor (weekly)
+
+```bash
+python3 finbert_scoring.py     # FinBERT weekly sentiment (first run downloads the model)
+python3 build_features_v2.py   # RWDV + scar labels + ARKF/QQQ factors
+python3 analysis_v2.py         # multi-factor logit → sprint2_results.md
 ```
 
 ### One-liner: compile, then run everything

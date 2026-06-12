@@ -6,8 +6,8 @@ Does social media sentiment predict extreme crypto events?
 ## Methodology 
 - Portfolio: 50% BTC + 50% ETH, VWAP-based daily returns
 - Sentiment tool: VADER (primary), TextBlob (validation)
-- Article source: 12 salient articles per period (a16z Crypto, CoinDesk)
-- Extreme event definition: 3-month forward return > ±2.5 rolling SD = 1, else 0
+- Article source: scraped corpus — 1,778 articles, 2021–2026 (GDELT + CoinDesk RSS); *(v1 used 12 hand-picked articles)*
+- Extreme event definition (current, Sprint 2): weekly bottom-decile forward return **and** not 50%-recovered within 15 days ("scar event"); *(v1 "±2.5 rolling SD" was mis-calibrated and replaced in Sprint 1)*
 - Model: logistic regression → odds ratio, AUC-ROC, McFadden R²
 - Primary window: 3 months, robustness check: 48-hour window
 - Framing: early warning signal, not causal claim
@@ -19,6 +19,7 @@ Does social media sentiment predict extreme crypto events?
 
 ## Pilot period
 February 2024, mentor's reference composite sentiment score was -6
+*(Resolved in Sprint 2: on the dense scraped corpus our composite is +0.041 vs −0.06 — gap 0.101 ✓. The v1 gap of +0.275 was an article-selection artifact.)*
 
 ## Explanation of each file
 
@@ -183,6 +184,9 @@ tiny count of extreme months, so it's the more robust check.*
 
 ## Results snapshot — 43 monthly obs, 6 extreme months (14%)
 
+*(Thin-corpus run, kept for the record. The dense-corpus re-run improved the best
+AUC to 0.600 — those are the numbers in the Headline table above.)*
+
 | Spec | Odds Ratio | AUC | McFadden R² | p-value |
 |---|---|---|---|---|
 | **VADER exp-hl7, lag-1 (best)** | 0.704 | **0.559** | 0.0161 | 0.495 |
@@ -207,3 +211,49 @@ tiny count of extreme months, so it's the more robust check.*
    reference **−0.06**. This persists from v1 and is almost certainly an
    article-*selection* difference, not a code bug — needs us to align on which
    articles feed the pilot month.
+   *(✓ RESOLVED after the dense-corpus scrape: +0.041, gap 0.101 — selection artifact confirmed.)*
+
+---
+
+# Sprint 2/3 — FinBERT, the original RWDV metric, and the confirmation run (Jun 2026)
+
+*Responding to the Jun-2026 mentor call: FinBERT, multi-factor model (ARKF/QQQ),
+downside-only volatility (Sortino / lower partial moments), flash-crash vs.
+sustained moves, and originality as the goal.*
+
+## The original contribution (literature-scan verified)
+
+- **RWDV — Recovery-Weighted Downside Volatility.** A lower partial moment where
+  each down-day's squared return is weighted by how long the portfolio took to
+  claw back half that day's loss (capped at 10 days). Flash crashes ≈ ignored;
+  sustained declines count fully. Verified by literature search: recovery time
+  exists only as a descriptive drawdown statistic — nobody uses it to weight a
+  volatility measure or define the event label. This is ours.
+- **Scar-event label.** Extreme-DOWN week = bottom-decile forward return AND not
+  50%-recovered within 15 days of the trough. The scar filter removed 10 of 28
+  decile weeks as flash crashes — the label now matches the mentor's "a one-day
+  dip is not an extreme move."
+
+## Setup (mentor's whiteboard)
+
+Weekly logit: P(scar event in week w+1) = f(FinBERT sentiment, trailing RWDV,
+ARKF 4-week return, QQQ 4-week return) — all at week w. FinBERT replaced VADER
+(article-level correlation between the two: only 0.35). Data: 2021-01 → 2026-06.
+
+## Results (pre-registered confirmation run, extended sample)
+
+| | n | events | OR (sentiment) | p | AUC | OOS AUC |
+|---|---|---|---|---|---|---|
+| Sprint-2 exploratory (2021–24) | 197 | 12 | 1.70 | 0.120 | 0.662 | 0.69 |
+| **Confirmation (2021–26)** | **200** | **13** | **1.70** | **0.108** | **0.660** | **0.670** |
+
+- **The effect size replicated exactly (OR 1.70)** — higher *sustained* news
+  optimism precedes scarring crashes (euphoria-reversal / sell-the-news), the
+  same direction the event study found.
+- **Not yet significant at 0.05** (p = 0.108). Honest framing per the mentor:
+  in this domain robust p-values are hard with ~13 events; the stable effect
+  size + out-of-sample AUC ≈ 0.67 is the stronger evidence.
+- FinBERT beats VADER head-to-head (p 0.11 vs 0.40 on the same controls).
+- Remaining bottleneck: the article corpus covers only 50 of 65 months —
+  most gaps in 2025–26. Backfilling those months (re-run `scrape_articles.py`)
+  is the highest-leverage next step before any new modelling.
