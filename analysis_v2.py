@@ -100,8 +100,8 @@ def main():
     bar = "=" * 96
     lines = [bar, "  SPRINT 2 — multi-factor weekly logit "
                   "(sentiment metric = first variable in each spec)", bar,
-             f"  {'spec':44s} {'n':>4s} {'ev':>3s} {'OR(sent)':>9s} "
-             f"{'p(sent)':>8s} {'AUC':>6s} {'McF':>7s}",
+             f"  {'spec':44s} {'n':>4s} {'ev':>3s} {'odds':>8s} "
+             f"{'AUC':>7s} {'McF R²':>8s} {'p':>8s}",
              "-" * 96]
     results = {}
     for name, y_col, x_cols in specs:
@@ -110,12 +110,12 @@ def main():
         if "error" in r:
             lines.append(f"  {name:44s} {r['n']:>4d} {r['events']:>3d}   failed: {r['error'][:30]}")
             continue
-        star = " *" if r["p_sent"] < 0.05 else "  "
+        star = " *" if r["p_sent"] < 0.05 else ""
         lines.append(f"  {name:44s} {r['n']:>4d} {r['events']:>3d} "
-                     f"{r['or_sent']:>9.3f} {r['p_sent']:>8.3f}{star} "
-                     f"{r['auc']:>6.3f} {r['mcf']:>7.4f}")
-    lines += [bar, "  * = p < 0.05 on the sentiment coefficient. "
-                   "OR per 1-SD move in the sentiment composite.", ""]
+                     f"{r['or_sent']:>8.3f} {r['auc']:>7.3f} "
+                     f"{r['mcf']:>8.4f} {r['p_sent']:>8.3f}{star}")
+    lines += [bar, "  * = p < 0.05.  odds = odds ratio on the sentiment coefficient "
+                   "(per 1-SD move).", ""]
 
     # Full coefficient table for the confirmation spec
     prim = results.get("C0 CONFIRMATION: FinBERT-4w + RWDV + ARKF + QQQ", {})
@@ -126,7 +126,7 @@ def main():
             if var == "const":
                 continue
             star = " *" if m.pvalues[var] < 0.05 else ""
-            lines.append(f"  {var:18s} OR = {np.exp(m.params[var]):6.3f}   "
+            lines.append(f"  {var:18s} odds = {np.exp(m.params[var]):6.3f}   "
                          f"p = {m.pvalues[var]:.3f}{star}")
         a = oos_auc(df, "extreme_down", [fin + "_4w"] + ctrl_rwdv)
         lines += [bar, (f"  Out-of-sample (train ≤{OOS_SPLIT[:4]}, test after): AUC = {a:.3f}"

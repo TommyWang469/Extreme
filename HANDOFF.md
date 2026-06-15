@@ -125,3 +125,47 @@ numbers preserved in `CONTEXT.md` (Sprint 1 section).
   2025–26). `scrape_articles.py` END now extended to Jun 2026 — run
   `python3 scrape_articles.py` 2–3× (GDELT rate limits), then
   `python3 finbert_scoring.py && python3 analysis_v2.py`.
+
+---
+
+## Automated audit run — 2026-06-14
+
+**Code audit (v2 pipeline) — no leakage bugs found.** Verified the predictive
+alignment is correct end-to-end:
+- RWDV `shift(H_RECOVERY)` correctly ensures the trailing window only contains
+  down-days whose recovery horizon is fully resolved by time T — no look-ahead.
+- Feature/label alignment is genuine lag-1: row `wk` carries features as of the
+  end of week `wk` and the target is the event in week `wk+1`.
+- 4-week sentiment smoothing uses only weeks `wk-3..wk` — no future leakage.
+
+**Two honest caveats (not bugs, design choices to disclose to the mentor):**
+- The decile thresholds `lo/hi` in `scar_labels` are full-sample quantiles, so the
+  out-of-sample test's *labels* are defined using the whole period. Defensible
+  ("extreme relative to the study window") but worth a footnote; a stricter OOS
+  would set the threshold on training data only.
+- The headline-table AUC is in-sample (optimistic); the separate OOS AUC line is
+  the honest discrimination number.
+
+**Root cause of weak significance confirmed:** the scraped corpus dead-stops at
+2025-01 — months 2025-02 → 2026-05 (16 months) have ZERO articles, while prices
+now run to Jun 2026. So extending prices added weeks with no sentiment, which the
+regression drops. Backfilling those months is the binding lever.
+
+**Backfill done + full re-run (honest result):** corpus now 2,382 articles,
+66/66 months covered, no gaps. Re-ran finbert_scoring → build_features_v2 →
+analysis_v2. The confirmation spec did **not** improve — it got slightly weaker:
+
+| | n | events | OR(sent) | p | in-samp AUC | OOS AUC |
+|---|---|---|---|---|---|---|
+| pre-backfill (200 wk, 2021–22-heavy) | 200 | 13 | 1.70 | 0.108 | 0.660 | 0.670 |
+| **full corpus 2021–26** | 269 | 17 | **1.533** | **0.139** | 0.642 | **0.590** |
+
+The earlier p≈0.108 was partly a small-sample artifact. On the complete data the
+euphoria-reversal direction (OR>1) persists but is NOT significant, and OOS AUC
+falls to ~0.59. This is the truthful state — do not report it as significant.
+
+**Interpretation (mentor-aligned, the real finding):** the signal was strong in
+the 2021–22 retail/chaos regime and faded as crypto institutionalised — a REGIME
+SHIFT, exactly what the mentor flagged ("3–4 regimes; how do you recognise the
+shift?"). Next honest step = one pre-specified regime-split test (2021–22 vs
+2023–26), reported either way. NOT spec-fishing for a star.

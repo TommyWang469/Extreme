@@ -1,0 +1,25 @@
+================================================================================================
+  SPRINT 2/3 — multi-factor weekly logit  (full corpus 2021–2026, 66/66 months)
+  sentiment metric = first variable in each spec
+================================================================================================
+  spec                                            n  ev     odds     AUC   McF R²        p
+------------------------------------------------------------------------------------------------
+  C0 CONFIRMATION: FinBERT-4w + RWDV + ARKF + QQQ  269  17    1.533   0.642   0.0248    0.139
+  S1 FinBERT alone (baseline)                   263  17    0.985   0.521   0.0000    0.953
+  S2 Sprint-2 primary (raw weekly FinBERT)      263  17    1.006   0.596   0.0079    0.983
+  S3 ablation: VADER + RWDV + ARKF + QQQ        263  17    0.921   0.609   0.0087    0.747
+  S4 ablation: FinBERT + semidev + factors      263  17    1.001   0.608   0.0126    0.997
+  S5 ablation: decile-only label (no scar)      263  27    0.877   0.594   0.0154    0.541
+  S6 extreme-UP side                            263  23    0.761   0.646   0.0363    0.239
+================================================================================================
+  * = p < 0.05.  odds = odds ratio on the sentiment coefficient (per 1-SD move).
+
+================================================================================================
+  CONFIRMATION SPEC — full coefficient table (per 1-SD)
+================================================================================================
+  finbert_exp_hl7_4w odds =  1.533   p = 0.139
+  rwdv_63            odds =  0.857   p = 0.594
+  arkf_ret_4w        odds =  0.741   p = 0.466
+  qqq_ret_4w         odds =  1.011   p = 0.980
+================================================================================================
+  Out-of-sample (train ≤2022, test after): AUC = 0.590
