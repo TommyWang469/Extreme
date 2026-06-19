@@ -96,7 +96,7 @@ lag — "use last month's sentiment to predict this month"
 
 | Metric | What it indicates (reminder) | v1 (before) | Now (best spec) | Direction |
 |---|---|---|---|---|
-| **Odds Ratio** | How much the odds of an extreme month multiply per 1-unit rise in sentiment. **1.0 = no effect**; >1 = higher sentiment → more extremes; <1 = higher sentiment → fewer extremes. | 1.20 | **0.62** | Flipped below 1 → now suggests *higher* prior sentiment precedes *fewer* tail months (a euphoria-reversal direction). More informative, but see p-value. |
+| **Odds Ratio** | How much the odds of an extreme month multiply per 1-unit rise in sentiment. **1.0 = no effect**; >1 = positive sentiment → more downward extremes; <1 = positive sentiment → fewer downward extremes. 
 | **AUC-ROC** | How well sentiment *ranks* months by extremeness. **0.5 = random coin-flip**, 1.0 = perfect. | 0.537 | **0.600** | ⬆ **Better.** Moved from "barely above random" to "modest but real" ranking ability. |
 | **McFadden R²** | Share of the variation in extreme months that sentiment explains. **0 = explains nothing**; >0.2 = strong fit for logistic models. | 0.0057 | **0.0270** | ⬆ **Better** (~5× higher), but still very low — sentiment alone explains very little. |
 | **p-value (β₁)** | Chance the effect is just random noise. **<0.05 = statistically significant**; higher = can't rule out chance. | 0.583 | **0.380** | ⬆ Lower (better) but still **not significant** — we cannot yet claim the effect is real. |

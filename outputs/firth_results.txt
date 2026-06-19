@@ -1,0 +1,22 @@
+============================================================================================
+  FIRTH PENALIZED LOGISTIC REGRESSION — rare-event-correct inference
+============================================================================================
+  spec                                              n  ev odds(sent)   p(PLR)
+--------------------------------------------------------------------------------------------
+  CONFIRMATION: FinBERT-4w + RWDV + ARKF + QQQ    269  17      1.498    0.028 *
+  FinBERT-4w alone                                269  17      1.402    0.032 *
+  decile-only label (no scar)                     269  27      1.364    0.026 *
+  extreme-UP side                                 269  24      0.831    0.059
+============================================================================================
+  * = p < 0.05 (penalized likelihood-ratio). odds per 1-SD of the sentiment composite.
+
+============================================================================================
+  CONFIRMATION SPEC — Firth coefficients (per 1-SD)
+============================================================================================
+  finbert_exp_hl7_4w odds =  1.498   p(PLR) = 0.028 *
+  rwdv_63            odds =  0.890   p(PLR) = 0.087
+  arkf_ret_4w        odds =  0.754   p(PLR) = 0.126
+  qqq_ret_4w         odds =  1.011   p(PLR) = 0.178
+============================================================================================
+  Permutation test on sentiment coef (5000 shuffles): p = 0.1422
+  (assumption-free cross-check of the Firth p-value above)

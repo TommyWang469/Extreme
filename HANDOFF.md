@@ -169,3 +169,107 @@ the 2021–22 retail/chaos regime and faded as crypto institutionalised — a RE
 SHIFT, exactly what the mentor flagged ("3–4 regimes; how do you recognise the
 shift?"). Next honest step = one pre-specified regime-split test (2021–22 vs
 2023–26), reported either way. NOT spec-fishing for a star.
+
+---
+
+## Sprint 2 step 1 — Firth penalized logistic regression (analysis_firth.py)
+
+Ran Firth (rare-event-correct, hand-implemented) on the confirmation spec.
+Result is **suggestive but NOT robust** — three p-values disagree:
+
+| test | sentiment p | sig? |
+|---|---|---|
+| ordinary logit (Wald) | 0.139 | no |
+| Firth penalized LR | **0.028** | yes (nominal) |
+| permutation (5,000) | 0.142 | no |
+
+Firth crosses 0.05 but the assumption-free permutation test does not confirm it.
+Cause: rolling-window predictors (`rwdv_63` 63-day, sentiment 4-week) are ~75–90%
+autocorrelated → effective n ≈ 40–70, not 269, so Firth's asymptotic χ² is too
+generous. **Do not report as significant.** Full write-up: `outputs/firth_results.md`.
+
+**Next:** (1) block-permutation / HAC correction for the autocorrelation, (2) the
+regime split (sprint2plan §3C) — most likely place a real within-regime effect lives.
+
+---
+
+## Sprint 2 step 2 — regime split + block permutation (analysis_regime.py)
+
+Tested the regime hypothesis properly. **It is NOT supported, and the earlier
+"strong in 2021–22, faded later" claim above is RETRACTED — it was a subsample
+artifact, never a tested result.**
+
+| regime | n | ev | odds | p(Firth) | p(block, honest) |
+|---|---|---|---|---|---|
+| Full 2021–26 | 269 | 17 | 1.498 | 0.028 | **0.120** |
+| Early <2023 (retail/chaos) | 93 | 9 | 1.126 | 0.162 | **0.744** |
+| Late ≥2023 (institutional) | 176 | 8 | 1.671 | 0.050 | **0.161** |
+| sentiment×regime interaction | — | — | 1.206 | **0.217** | — |
+
+Block permutation (8-wk blocks, preserves autocorrelation) shows **nothing robustly
+significant** in any slice; the interaction is not significant (p=0.217) so there is
+**no statistical regime shift**. Early regime is the *weakest*, not strongest —
+opposite of the retracted narrative.
+
+**Standing conclusion after steps 1–2:** sentiment→scarring-crash is directionally
+consistent (odds ≈ 1.5, euphoria-reversal) but **not robust** under
+autocorrelation-aware testing — a genuine near-null. Contribution = methodology
+(RWDV, scar labels, Firth + block-permutation), not a significant p. Full write-up:
+`outputs/regime_results.md`.
+
+---
+
+## Sprint 2 step 3 — Event study plan (NEXT; not yet built)
+
+The mentor's preferred low-event tool; its statistics do **not** depend on the
+17-event weekly logit, so it is the best remaining shot at a clean, independent
+significance result. `event_study.py` exists (Sprint 1) but is stale (≤2024 events,
+not re-run on the extended data). Build plan:
+
+**E0. Pre-register** the event list, windows, and tests before running (so it can't
+be called cherry-picked).
+
+**E1. Three testable questions**
+1. Do known shocks produce statistically significant abnormal returns (CAR ≠ 0)?
+2. Is the "good news → negative CAR" *sell-the-news* pattern real across events?
+3. Does **pre-event sentiment** relate to the subsequent CAR / recovery?
+
+**E2. Event selection (objective rule, not hand-picked).** Include every event meeting
+a pre-set criterion — a named exogenous catalyst (hack, exchange/stablecoin collapse,
+regulatory ruling, ETF, halving, macro risk-off) OR a weekly drawdown beyond the
+10th-percentile scar decile; include up *and* down.
+- Keep the 5: Ronin 2022-03-23, Terra/LUNA 2022-05-09, FTX 2022-11-11,
+  ETF approval 2024-01-10, halving 2024-04-20.
+- Add (verify exact dates before coding): 2024-08-05 global risk-off crash; 2024-11
+  US-election move; 2–3 events in 2025–H1 2026 by the same rule. Target ≥ 8–10 events.
+
+**E3. Abnormal-return model.** Keep mean-adjusted baseline; ADD a market-model variant
+(portfolio on QQQ / broad crypto index over [−120,−31]). Windows: estimation
+[−120,−31]; event [−10,+10]; also [−1,+1] (announcement) and [−10,+30] (drift/recovery).
+
+**E4. Statistics for few, fat-tailed events (key upgrade).** Parametric: cross-sectional
+t-test; variance-robust standardized tests (Patell, Boehmer–Musumeci–Poulsen). Non-
+parametric (essential): sign test, Corrado rank test. Bootstrap the average-CAR CI.
+Significant only when parametric AND non-parametric agree.
+
+**E5. Sentiment integration.** Regress each event's CAR on its pre-event sentiment
+(FinBERT [−10,−1]); test the slope (independent of the weekly logit). Test whether
+sentiment direction predicts CAR sign (sell-the-news vs buy-the-news).
+
+**E6. Recovery-time / downside lens (bridge to RWDV — mentor's hint).** Per event,
+measure time to recover 50% / 80% of the trough loss; decompose CAR into downside-only
+(Sortino/LPM); test whether pre-event sentiment predicts recovery time, not just CAR.
+
+**E7. Era comparison — DESCRIPTIVE ONLY.** Step 2 found no statistical regime shift
+(interaction p=0.217), so compare 2022-era vs 2024–26-era events qualitatively; make
+no regime-shift claim.
+
+**E8. Deliverables (results-file convention).** `outputs/event_study_car.png` (CAR
+paths, both models); `outputs/event_study.txt` (raw table: event, date, CAR by window,
+test stats, p, pre-sentiment, recovery days); `outputs/event_study.md` (interpretation
+only); a pre-event-sentiment vs CAR scatter (fitted line + slope p).
+
+**E9. Honesty guardrails.** Pre-registered list+windows; non-parametric alongside
+parametric; with ~10 events frame as suggestive corroboration, not proof; no
+regime-shift claim. Likely outcome: corroborates the descriptive findings rather than
+a strong significant result — and that's fine, per the mentor.

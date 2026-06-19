@@ -1,0 +1,17 @@
+================================================================================================
+  REGIME-SPLIT TEST — sentiment -> scarring-crash, Firth + block-permutation
+================================================================================================
+  regime                                      n  ev  odds(sent)  p(Firth)  p(block)
+------------------------------------------------------------------------------------------------
+  Full sample 2021-2026                     269  17       1.498    0.028 *    0.120
+  Early regime  < 2023-01-01 (retail/chaos)   93   9       1.126    0.162      0.744
+  Late regime  >= 2023-01-01 (institutional)  176   8       1.671    0.050      0.161
+================================================================================================
+  p(Firth) = penalized likelihood-ratio (parametric).
+  p(block) = block-permutation, 8-week blocks, 3000 shuffles (autocorrelation-robust — the honest one).
+
+================================================================================================
+  FORMAL REGIME-SHIFT TEST  (sentiment x late-regime interaction, Firth)
+================================================================================================
+  interaction odds = 1.206   p(PLR) = 0.217   (n=269, events=17)
+  interaction p < 0.05 ⇒ the sentiment effect is statistically different between regimes.
