@@ -1,140 +1,189 @@
-# What Could Be Wrong, and What to Improve Next
+# Sprint 3 Plan — Model Revision & Event Study (paper comes later)
 
-**Project:** Social Media Sentiment as a Predictor of Extreme Crypto Events
+*Focus per the Jun-19 2026 mentor meeting + this round's literature search: **revise the
+model and implement the event study first**; the research paper is deferred until the
+modeling is solid. Honesty (walk-forward, pre-registration, no p-hacking, report negative
+results) runs through everything.*
 
-This file is forward-looking only: possible mistakes in the current approach, and
-the questions worth pursuing next. (For what's already built, see `CONTEXT.md`.)
-
----
-
-## 1. Possible mistakes / weaknesses in the current approach
-
-- **Too few extreme events.** Only ~6 extreme months in the sample. This is the
-  binding constraint — with so few positives, no logistic regression can reach
-  statistical significance no matter how good the predictor is.
-- **We score headlines, not articles.** GDELT returns only the title (the
-  `snippet` column is just a copy of the `headline`). So the sentiment input is a
-  single short sentence per article — noisy, and never the article body or lede.
-- **VADER may be the wrong tool for crypto.** It's a generic social-media lexicon
-  and likely misreads crypto jargon ("breaks resistance," "capitulation," "down
-  bad"). A finance/crypto-tuned model could flip conclusions.
-- **News ≠ social media.** The research question says *social media* sentiment, but
-  we score *news articles*. We may be measuring editorial tone, not crowd mood.
-- **Pilot benchmark gap.** Our Feb-2024 composite doesn't perfectly match the
-  mentor's reference — a sign the article set / scoring may differ from intended.
-- **EVT fit is unstable.** The Generalized Pareto fit on ~7 monthly exceedances is
-  unreliable (ξ blows up); not enough tail data at monthly resolution.
-- **Risk of p-hacking.** We already run 4 specs. As specs multiply, a "significant"
-  result could just be luck unless we correct for multiple testing.
-- **Possible reverse causality.** Sentiment might *react* to extremes rather than
-  *predict* them — we haven't formally tested direction.
+> **Picking this up in a new session?** Go straight to **§3 — Step-by-step execution order**
+> and begin with **Step 1 (event study)**. §1/§1.5 explain *why* each step; §3 is the *do-this-next* list.
 
 ---
 
-## 2. Sprint 2 plan — originality + significance (decided Jun 2026)
+## 0. Where we are
 
-> Driven by the mentor call (Jun 2026) and a literature scan. Two directions:
-> (A) FinBERT sentiment, (B) an **original volatility calculation** — the novelty
-> judges look for. "Unique and significant" are the two goals.
-
-### 2.1 What's already taken (literature scan, Jun 2026)
-
-| Crowded — do NOT claim as novel | Where |
-|---|---|
-| VADER/FinBERT + LSTM/GRU price prediction | FinBERT-BiLSTM (arXiv 2411.12748, Applied Intelligence 2026); many Kaggle/GitHub repos |
-| Sentiment → price *jumps* via logistic regression | "Not all words are equal: Sentiment and jumps in the cryptocurrency market" (J. Int. Fin. Markets 2023) |
-| Sentiment inside GARCH / stochastic-vol models | BERT+GARCH review (arXiv 2510.16503); sentiment-driven stochastic vol (arXiv 1906.00059) |
-| Realized semivariance + Twitter sentiment for jump prediction | ScienceDirect 2026 (realized metrics + sentiment via ML) |
-
-**The open gap (verified):** drawdown *recovery time* appears in the literature only
-as a descriptive statistic (how long to climb back to the peak). Nobody uses recovery
-persistence to (a) **weight a volatility measure** or (b) **define the extreme-event
-label**. That gap matches exactly the mentor's hints: lower partial moments / Sortino,
-"flash crash ≠ extreme move," "climbing back 50/80%," stairs-up-elevator-down asymmetry.
-
-### 2.2 The original contribution: Recovery-Weighted Downside Volatility (RWDV)
-
-Standard deviation treats a −8% day that bounces back tomorrow the same as a −8% day
-that starts a six-month bear market. RWDV does not:
-
-- For each **down** day *t* (only downside — a lower partial moment, per Sortino logic):
-  find τ_t = trading days until the portfolio claws back 50% of that day's loss,
-  capped at H (=10) days. Weight w_t = τ_t / H ∈ (0,1].
-- **RWDV** = √( 252 · mean over window of [ w_t · r_t² | r_t < 0 ] )
-- Flash crash (recovers next day) → w ≈ 0.1 → nearly ignored. Sustained decline
-  (no recovery within H days) → w = 1 → full weight. *"Bruises fade; scars count."*
-- **No look-ahead:** as a trailing predictor at time T, the window only includes
-  down-days whose H-day recovery horizon is fully resolved by T (lag by H).
-
-**Scar-event label (the redefined "extreme event"):** a week is an extreme-DOWN event
-if next week's return is in the bottom decile AND the drop is *not* 50%-recovered
-within 15 trading days of the trough. Extreme-UP labelled separately (top decile) —
-up/down modelled asymmetrically per the mentor. Weekly resolution → ~208 obs and
-~3× the events of the monthly design → real statistical power.
-
-### 2.3 The multi-factor model (mentor's whiteboard, verbatim)
-
-One variable alone can't predict ("height alone doesn't predict jump ability"):
-
-| Factor | Role |
-|---|---|
-| FinBERT sentiment (exp-weighted, lag-1) | the variable under test |
-| Trailing RWDV | volatility clustering control — *and* our novel metric |
-| ARKF (FinTech ETF) trailing 4-week return | the mentor's FinTech-proxy factor |
-| QQQ trailing 4-week return | broad tech-market factor |
-
-Logit: P(extreme-down week w+1) = f(factors at week w). Pre-registered primary test:
-the FinBERT coefficient, controlling for everything else. Ablations: VADER vs FinBERT,
-RWDV vs plain semideviation vs plain SD, with/without scar condition.
-Out-of-sample: train 2021–22, test 2023–24.
-
-### 2.4 Build order
-
-1. `finbert_scoring.py` — FinBERT (ProsusAI/finbert) on scraped headlines → weekly composites
-2. `build_features_v2.py` — ARKF/QQQ download + RWDV + scar labels → `data/dataset_weekly.csv`
-3. `analysis_v2.py` — multi-factor logit + ablation table + out-of-sample AUC
+Sprint 2 built an original method — RWDV (recovery-weighted downside volatility),
+scar-event labels, FinBERT sentiment, a multi-factor weekly logit, and rare-event-correct
+stats (Firth + permutation + block-permutation). Honest result: a **near-null** —
+sentiment→scarring-crash odds ≈ 1.5 (suggestive, euphoria/sell-the-news direction) but not
+robustly significant (Firth p = 0.028 vs permutation/block ≈ 0.12–0.14; OOS AUC ≈ 0.6).
+Sprint 3 = better models + the event study, to get more robust, better-understood results.
 
 ---
 
-## 3. What to improve next (ranked by leverage)
+## 1. PRIORITY — model revision & event study
 
-### Highest leverage
-- **Q1. Raise the event count → go weekly/daily.** Monthly resolution caps us at
-  ~6 events. Weekly or daily returns give far more tail observations — the single
-  biggest unlock for statistical power (and makes EVT viable again).
-- **Q2. Swap VADER for a domain model.** Try **FinBERT** or **CryptoBERT** and
-  compare AUC. Does a crypto-aware model change any conclusion?
-- **Q3. Get real article text, not just headlines.** Pull the lede/first paragraph
-  (CoinDesk RSS already provides a description; or fetch the first paragraph per
-  URL). Then test headline vs. headline+lede vs. full body.
+Ordered by leverage. Each item: what, why it can help, reference, honest expectation.
 
-### Medium leverage
-- **Q4. Add a second predictor (the "NAND" idea).** Bring in trading volume,
-  realised volatility, VIX, funding rates, or Google Trends. Test multivariable
-  logistic regression *and* boolean rules (e.g. `high sentiment AND low volume`).
-  Does sentiment survive controls?
-- **Q5. Model up-moves and down-moves separately.** Sentiment may predict crashes
-  but not rallies. Split the label into extreme-positive vs. extreme-negative.
-- **Q6. Find the optimal lead time.** We only tested lag-1. Fit a distributed lag
-  (1, 2, 3 months) and find which lead time maximises predictive power, if any.
-- **Q7. Use real social media data.** Pull Reddit (r/CryptoCurrency, r/Bitcoin) or
-  X/Twitter to answer the actual research question, and compare to news sentiment.
+### 1a. Implement the event study (NOT done yet — mentor's priority before the paper)
+The mentor's preferred low-event tool; its stats don't depend on the 17-event logit, so it's
+the best shot at clean, independent evidence.
+- `event_study.py` exists (Sprint 1) but is **stale** (≤2024 events, not re-run on extended data).
+- Add **stablecoin de-pegging** events (Terra/UST May-2022 + others) — a depeg is by
+  definition an extreme event, and the "how long does the depeg last" debate maps directly
+  onto our recovery-time heuristic. Link historically to money-market funds "breaking the
+  buck" (2008). Ref: Coinbase "why do stablecoins depeg."
+- Event selection by an **objective rule** (named catalyst OR weekly drawdown past the scar
+  decile); target ≥ 8–10 events, up and down.
+- Stats for few, fat-tailed events: variance-robust standardized tests (Patell,
+  Boehmer–Musumeci–Poulsen) **plus** non-parametric (sign, Corrado rank) + bootstrap CI;
+  significant only when both agree. Regress each event's CAR on pre-event sentiment; measure
+  recovery time (50%/80%) to bridge back to RWDV.
+- *Expectation:* likely corroborates the descriptive findings (sell-the-news, recovery
+  asymmetry) more cleanly than the regression — a real, reportable result.
 
-### Validation & honesty
-- **Q8. Out-of-sample test.** Train on 2021–2022, test on 2023–2024. Does any
-  signal survive, or is it in-sample overfitting?
-- **Q9. Granger-causality test** on the monthly series to check direction
-  (sentiment → extremes vs. the reverse).
-- **Q10. Strengthen the event study.** Add more events, run a formal t-test on the
-  CARs, and test whether the pre-event sentiment ↔ CAR correlation is real.
-- **Q11. Guard against p-hacking.** Pre-register the primary spec, or apply a
-  multiple-testing correction (Bonferroni / Benjamini–Hochberg).
-- **Q12. Resolve the pilot benchmark gap.** Reconcile which article set the mentor
-  used for Feb-2024.
+### 1b. True walk-forward backtesting (the mentor's #1 rigor ask)
+Replace the single train≤2022 split with expanding-window walk-forward + exponential decay
+of older data; **strict no look-ahead, including normalization and the decile thresholds**
+(compute on the training window only). This is the foundation every model below is scored on.
+Refs: StrategyQuant walk-forward optimization; Interactive Brokers walk-forward analysis.
 
-### Parking lot
-- **Q13. Extend to Mt Gox (2014)?** Requires price + news back to 2013. Only worth
-  it if current results justify the effort.
+### 1c. Handle the rare-event class imbalance (high-leverage, under-used so far)
+Ordinary logistic regression **systematically underestimates** rare-event probability — the
+core reason a real weak signal stays hidden. Fixes: **class weights / cost-sensitive loss**
+(weight the ~6% crash class up), and we already added Firth. Try cost-sensitive logistic and
+report recall/precision on crashes, not just AUC.
+Refs: "Weighting methods for rare event identification" (PMC8734962); "Learning Rare Events:
+Deep Learning for Extreme Price Prediction" (Forecast 2025, doi:10.3390/forecast8030052).
+
+### 1d. GARCH-EVT tail model (domain-standard, strong originality fit)
+Pair an **asymmetric GARCH** (EGARCH / GJR-GARCH — captures the "downside vol clusters more"
+effect, same spirit as RWDV) with **Extreme Value Theory** (Generalized Pareto on the tail,
+the Peaks-Over-Threshold approach we tried in Sprint 1 but which was unstable monthly — viable
+at weekly/daily). Gives a principled crash-probability that we can compare to / combine with
+the sentiment model. Refs: eGARCH-EVT-Copula for crypto (arXiv 2407.15766); POT prediction
+(arXiv 2504.04602); GARCH-family vs deep learning for crypto vol (mf-journal #370).
+
+### 1e. Nonlinear model benchmark — LightGBM / XGBoost (mentor suggested)
+Gradient-boosted trees consistently top crypto forecasting horseraces and capture
+interactions a linear logit can't (e.g., "high sentiment AND low volatility"). Run under the
+same walk-forward CV; **pre-register, don't p-hack** — expect a slight bump, and use it to see
+*which variables* matter (feature importance), not just to chase AUC. Refs: LightGBM crypto
+forecasting + anomaly detection (MDPI Appl. Sci. 15/4/1864); Köse 2025 (J. Forecasting).
+
+### 1f. Better features (feed every model above)
+- **Combine QQQ + ARKF into one factor** (~0.4 QQQ / 0.6 ARKF) — they're correlated.
+- **Recode the target for nonlinear extreme-loss weighting** — blow up losses beyond ±2 SD;
+  leverage-aware (50% DD @ 2× = wipeout). Mentor: "change the penalty by recoding the output."
+- Add candidate predictors: trading **volume**, **funding rates**, **VIX**, Google Trends.
+- *(Optional)* **CryptoBERT** instead of FinBERT — reads crypto slang; one clean swap to test
+  whether a domain sentiment model moves anything.
+
+### 1g. Self-exciting tail clustering — Hawkes / 2T-POT-Hawkes *(stretch)*
+Models extreme events as self-exciting clusters (one crash raises the odds of the next) — an
+original complement to RWDV's clustering idea; test whether sentiment shifts the intensity.
+Ref: 2T-POT Hawkes for left/right-tail quantiles (arXiv 2202.01043).
 
 ---
 
+## 1.5 Deeper research gaps — usually HIGHER leverage than more models
+
+§1 mostly swaps in fancier models for a slight bump. But with ~17 events, the limiting
+factors are **data, identification, and information content — not model class.** A careful
+reviewer would push on these first:
+
+**G1. Expand the cross-section (panel of coins) — the #1 power lever.** Today it's one
+BTC+ETH series → ~17 events. Run the same design across many coins (BTC, ETH, SOL, top-N),
+pooled into a **panel / mixed-effects logistic regression** with coin fixed effects and
+SEs clustered by coin. This turns ~17 events into *hundreds* — the single biggest legitimate
+route to statistical power. Include **delisted/dead coins (LUNA)** to avoid survivorship bias.
+
+**G2. Power analysis + go daily.** Compute the **minimum detectable effect / required event
+count** for ~80% power at odds ≈ 1.5 — quantify how underpowered weekly is instead of just
+asserting it. **Daily** resolution raises power *and* makes GARCH-EVT / POT actually estimable
+(they need many tail observations).
+
+**G3. Identification — control for momentum / past returns.** Test whether sentiment is just
+a proxy for recent price action: add **lagged returns/volatility** as controls and run a
+**lead–lag (Granger) test** to confirm sentiment *leads* rather than *lags*. Without this,
+"prediction" may be spurious. (This is the difference between *associated* and *predictive*.)
+
+**G4. Richer target than binary.** Also model crash **severity** (continuous tail loss) or a
+**survival / hazard** model for time-to-next-extreme — both use more information per
+observation and sidestep the rare-event binary ceiling.
+
+**G5. Use the sentiment signal we discard.** We compute `n_articles` but only use polarity.
+Add **news volume (attention spikes)** and **disagreement (dispersion across articles)** as
+predictors — both are documented volatility predictors, often stronger than mean sentiment,
+and we already have the data.
+
+**G6. Economic-significance test.** Translate the signal into a simple **sentiment risk-off
+rule** and report Sortino/Sharpe and drawdown avoided — connects the statistics to the
+mentor's trading lens, and is a result even if the p-value is weak.
+
+**G7. Report the null rigorously.** Report the **odds-ratio confidence interval** and the
+**minimum detectable effect**, not just "p = 0.14." A wide CI (e.g. [0.8, 2.8]) means
+"can't rule out a real effect," which is very different from "no effect."
+
+**G8. Operationalize pre-registration.** Write and freeze an actual pre-registration file
+(hypotheses, primary spec, analysis plan) *before* running Sprint 3 — otherwise it's just a word.
+
+> **Meta-point:** items G1–G3 (cross-section, power/daily, momentum control) would do more
+> for the result's credibility than GARCH-EVT or LightGBM. Do them first.
+
+---
+
+## 2. Research paper — LATER (don't focus on it yet)
+
+After the modeling above is solid. When the time comes: Overleaf/LaTeX; sections Introduction ·
+Background/Related Work · Data & Methods · Results · Discussion · Conclusions(+future) ·
+References · Appendices; pre-register; APA citations (Purdue OWL); report negative results.
+Venues: ICAIF 2026 **workshop** (icaif2026.org; ~Aug submission, virtual option),
+Scholarly Review, Curieux Academic Journal. *(Detail kept brief on purpose — revisit after Sprint 3 modeling.)*
+
+---
+
+## 3. Step-by-step execution order (START HERE in a new session)
+
+**Step 1 — Event study.** Re-run `event_study.py` on current data; add stablecoin-depeg
+events (Terra/UST + others) and 2025–26 events by an objective rule (target ≥ 8–10 events);
+add Patell/BMP + sign/Corrado tests + bootstrap CI; regress each event's CAR on pre-event
+sentiment; measure 50%/80% recovery time. → `outputs/event_study.{txt,md}` + CAR plot. (§1a)
+*First command: `python3 event_study.py`, then extend it.*
+
+**Step 2 — Walk-forward harness.** Expanding window + exponential decay; compute all
+normalization **and** the scar decile thresholds on the *training window only* (no
+look-ahead). Re-score the current model under it. (§1b)
+
+**Step 3 — Panel of coins + power analysis** (the real fix for too few events). Pull top-N
+coins incl. delisted ones (LUNA); rebuild the weekly features per coin; pooled
+panel / mixed-effects logit with coin fixed effects + clustered SEs. Compute the minimum
+detectable effect / events needed for 80% power at odds ≈ 1.5. (§G1–G2)
+
+**Step 4 — Identification + free signal.** Add lagged-return / momentum controls + a
+lead–lag (Granger) test; add news-volume and disagreement predictors. (§G3, §G5, §1f)
+
+**Step 5 — Models on the credible setup.** Class-imbalance / cost-sensitive logit, richer
+target (severity / hazard), then GARCH-EVT and LightGBM. (§1c, §G4, §1d, §1e)
+
+**Step 6 — Economic significance + honest null.** Sentiment risk-off backtest
+(Sortino/Sharpe, drawdown avoided); report odds-ratio CI + minimum detectable effect.
+Hawkes if time. (§G6–G7, §1g)
+
+**Before Step 3 runs:** freeze a pre-registration file (hypotheses + primary spec). (§G8)
+
+---
+
+## 4. Honesty guardrails
+Walk-forward with **no look-ahead** (incl. normalization & thresholds) · **pre-register**
+each experiment · **no p-hacking** (no run-many-report-best; correct for multiple testing if
+many) · **negative results are valid** · always report n, event count, recall on the crash
+class, and the autocorrelation-robust p. With ~17 events the ceiling is real — the aim is
+robustness + understanding (which variables/models matter and why), not a forced p < 0.05.
+
+---
+
+## 5. Timeline
+Next mentor meeting **Jul 1, 2026 (1 PM PT / 4 PM ET)**; user at **COSMOS camp Jul 5 – Aug 1**.
+Pre-Jul-5 priority: **event study + walk-forward harness** running, with the new model
+families scaffolded.

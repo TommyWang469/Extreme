@@ -3,6 +3,30 @@
 ## Research question
 Does social media sentiment predict extreme crypto events?
 
+## Project timeline — what we did, in order
+*(Chronological record; doubles as the skeleton of the paper's Methods/Discussion.)*
+
+1. **v1 (first pipeline).** Monthly VADER logistic regression. Found a broken extreme-event
+   label (31.8% of months flagged "extreme") — fixed to one obs/month on the whole-sample
+   distribution → ~13%.
+2. **Sprint 1.** Added exponential weighting (7-day half-life) + lagged (predictive)
+   sentiment; 3 label methods (quantile / global-z / EVT); a GDELT+CoinDesk scraper; and an
+   event study (CAR around Ronin/Terra/FTX/ETF/halving → "sell-the-news"). Best AUC ~0.56–0.60,
+   still not significant.
+3. **Sprint 2 — model.** Switched VADER → **FinBERT**; invented **RWDV** (recovery-weighted
+   downside volatility) + **scar-event** labels; built a **multi-factor weekly logit**
+   (sentiment + RWDV + ARKF + QQQ). Resolution monthly → weekly (6 → 17 events).
+4. **Sprint 2 — statistics.** Tested the best spec with **Firth** penalized regression +
+   **permutation** + **block-permutation** → honest **near-null** (odds ≈ 1.5, Firth p = 0.028
+   but permutation/block ≈ 0.12–0.14; OOS AUC ≈ 0.6).
+5. **Regime test.** Split 2021–22 vs 2023–26 + interaction test → **no statistical regime
+   shift** (p = 0.217); the earlier "strong early, faded late" story was retracted.
+6. **Data backfill.** Extended prices + articles to mid-2026 → **66/66 months covered**
+   (2,382 articles); the full-corpus re-run confirmed the near-null.
+7. **Sprint 3 plan (next).** Event study (depegging) → walk-forward backtesting →
+   **panel of coins + power analysis** → identification/feature work → new model families →
+   economic-significance + honest-null reporting. See `improvement.md` §3 for the step order.
+
 ## Methodology 
 - Portfolio: 50% BTC + 50% ETH, VWAP-based daily returns
 - Sentiment tool: VADER (primary), TextBlob (validation)

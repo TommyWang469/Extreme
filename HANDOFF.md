@@ -1,275 +1,35 @@
 # Project Handoff Note
+
 **Research:** Social Media Sentiment as a Predictor of Extreme Crypto Events
-**Status:** Sprint 2 built (FinBERT + RWDV multi-factor, weekly) — see improvement.md §2 and sprint2_results.md
-
----
-
-## What we built
-
-Starting from scratch, we built a full end-to-end research pipeline across five Python scripts:
-
-1. **data_collection.py** — Downloads daily BTC and ETH price data from Yahoo Finance (2021–2024), approximates daily VWAP as (High + Low + Close) / 3, computes log-returns, and constructs a 50/50 equal-weighted portfolio return series. Saves to `data/price_data.csv`.
-
-2. **sentiment_scoring.py** — Reads `data/articles.txt` (tab-separated: date + article text), scores every article with VADER (primary, compound score −1 to +1) and TextBlob (validation), then resamples to monthly frequency so each month has one composite sentiment score. Saves to `data/sentiment_scores.csv`.
-
-3. **event_definition.py** — Computes 63-trading-day (≈3 month) forward returns for the portfolio, calculates rolling mean and SD, and labels any period where the forward return exceeds ±2.5 rolling SD as an extreme event (binary: 1 = extreme, 0 = normal). Resamples daily labels to monthly frequency using MAX — if any day in a month was extreme, the whole month is labelled 1. Saves to `data/labeled_events.csv`.
-
-4. **analysis.py** — Merges monthly sentiment scores with monthly event labels, runs a logistic regression (VADER compound → extreme binary), and reports odds ratio, AUC-ROC, McFadden R², and p-value. Saves ROC curve to `outputs/roc_curve.png`.
-
-5. **articles.txt** — We manually created 66 representative articles spanning January 2021 to December 2024, covering all major crypto events (2021 bull run, Terra/LUNA collapse, FTX bankruptcy, 2023 recovery, Bitcoin ETF approval, 2024 halving and ATH). Each line is formatted as `YYYY-MM-DD\tarticle text`.
-
-We also wrote `requirements.txt`, `README.md`, and `CONTEXT.md` documenting the full methodology.
-
----
-
-## A problem we ran into and fixed
-
-The first version merged sentiment and event data on exact dates. Because articles.txt had only 1–4 articles per month (not one per trading day), the inner join produced only **54 matched rows and 3 extreme events** — far too few for logistic regression to find any signal.
-
-**Fix:** We resampled both datasets to monthly frequency before merging:
-- `sentiment_scoring.py` now averages all articles within a month → one row per month
-- `event_definition.py` now takes the MAX of extreme_binary per month → one row per month
-- `analysis.py` now aligns both series on month-end timestamps before joining
-
-This gave us **41 monthly observations with 14 extreme event months (34.1%)** — a workable dataset.
-
----
-
-## Results so far
-
-| Metric | Value | What it means |
-|---|---|---|
-| Odds Ratio | 1.1985 | A 1-SD rise in sentiment multiplies the odds of an extreme event by 1.20× |
-| AUC-ROC | 0.5370 | Barely above random (0.50 = guessing, 1.0 = perfect) |
-| McFadden R² | 0.0057 | Sentiment explains ~0.6% of extreme event months |
-| p-value | 0.5832 | Not statistically significant — cannot rule out chance |
-
-**Plain-language conclusion:** The odds ratio of 1.20 shows a small positive directional effect — higher sentiment slightly raises the odds of an extreme event — but it is weak and not statistically significant. AUC of 0.537 means the model barely outperforms random guessing. McFadden R² of 0.006 means sentiment alone explains almost nothing. The p-value of 0.58 means there is a 58% chance this result appeared by chance.
-
-This is a valid and honest finding: a small number of curated articles scored with VADER does not strongly predict extreme crypto events on its own. That conclusion is itself reportable.
-
----
-
-## How to improve next
-
-The following are the most impactful next steps, in priority order:
-
-**1. Add more articles per month (highest priority)**
-The biggest weakness is data density — averaging 1–4 articles per month is not enough to produce a reliable composite sentiment score. Target at least 10–15 articles per month. Sources to add: CoinDesk daily news feed, a16z Crypto blog, The Block, Decrypt. Even pulling article headlines rather than full text would help.
-
-**2. Test a lagged sentiment predictor**
-Currently, sentiment in month T is matched against the extreme event label for month T. But the research question is about prediction — does sentiment *precede* extreme events? Try shifting the sentiment score forward by 1 month (sentiment at T predicts event at T+1) and re-running analysis.py. This is a one-line change: `df["vader_compound"] = df["vader_compound"].shift(1)` before the regression.
-
-**3. Add a control variable**
-A single predictor model is fragile. Adding one control variable — such as monthly BTC trading volume (already downloadable via yfinance) or the VIX index (market fear gauge) — would make the model more robust and allow the mentor to assess whether sentiment adds explanatory power *beyond* what market conditions already predict.
-
-**4. Run the 48-hour robustness check**
-The methodology specifies a 48-hour window as a robustness check alongside the 3-month primary window. In `event_definition.py`, change `WINDOW = 63` to `WINDOW = 2` and re-run the pipeline. Compare results. If the signal improves at shorter horizons, that tells you something about how quickly sentiment translates into price action.
-
-**5. Check the pilot period benchmark**
-The mentor's reference composite VADER score for February 2024 was −6 (on a ×100 scale, i.e. −0.06 in raw VADER). Our pipeline produced a February 2024 composite of +0.326 for that month — a meaningful discrepancy. This could be due to article selection differences. Worth discussing with the mentor to align on which articles to include.
-
----
-
-## How to continue in a new conversation
-
-1. Share this file and `CONTEXT.md` with your new Claude session as context
-2. The full pipeline is in `/Users/hongqingwang/Documents/GitHub/Github Extreme/`
-3. Run order: `data_collection.py` → `scrape_articles.py` → `sentiment_scoring.py` → `event_definition.py` → `analysis.py` → `event_study.py`
-4. The most impactful next task is increasing article density (run `scrape_articles.py`, possibly 2–3× to fill GDELT-rate-limited months)
-
----
-
-## Sprint 1 update (improvement.md T6–T10)
-
-**What was done**
-- **Fixed the broken extreme-event label.** v1 flagged 31.8% of months as extreme
-  (rolling-SD on overlapping forward returns + monthly MAX). Rewritten to one
-  clean obs/month thresholded against the whole-sample distribution. New base rate
-  **13.0%**. Three selectable methods: `quantile` (default), `global_z`, `evt` (GPD).
-- **sentiment_scoring.py:** added exponential weighting (7-day half-life) and
-  snippet-only scoring; auto-detects `articles_scraped.csv`, falls back to `articles.txt`.
-- **analysis.py:** now compares 4 predictor specs (linear/exp × contemporaneous/lag-1),
-  prints a ranked table, and checks the Feb-2024 pilot benchmark.
-- **event_study.py (new):** CAR around Ronin / Terra / FTX / ETF / halving.
-- **scrape_articles.py (new):** GDELT historical backfill + CoinDesk RSS (BeautifulSoup),
-  cached + throttled, targets ≥30 articles/month → `data/articles_scraped.csv`.
-
-**Results:** best spec (exp-weighted, lag-1) AUC 0.480→0.559; still not significant
-(low power at ~6 events). Event study shows "sell-the-news" on ETF/halving. Full
-numbers preserved in `CONTEXT.md` (Sprint 1 section).
-
----
-
-## Sprint 2 update (Jun 2026)
-
-**Done**
-- Dense corpus (1,778 articles); pilot Feb-2024 gap resolved (+0.041 vs −0.06 ✓).
-- FinBERT weekly sentiment (`finbert_scoring.py`) — corr with VADER only 0.35.
-- **Novel metric: RWDV** (Recovery-Weighted Downside Volatility) + scar-event
-  labels (`build_features_v2.py`) — literature-scan-verified gap.
-- Multi-factor weekly logit with ARKF + QQQ (`analysis_v2.py`), per mentor's
-  whiteboard. 194 weeks, 12 scar events.
-
-**Results:** pre-registered spec not significant (p = 0.83). Exploratory
-4-week-smoothed FinBERT: OR 1.70, p = 0.12, AUC 0.66; out-of-sample AUC
-0.69–0.79 (only 3 test events). Full tables in `sprint2_results.md`.
-
-**Open items / Sprint 3**
-- ✓ Prices extended to Jun 2026 (`data_collection.py`); confirmation run done:
-  OR 1.70 (replicated exactly), p = 0.108, OOS AUC 0.670 — see sprint2_results.md
-  and the Sprint 2/3 section of CONTEXT.md.
-- ✓ CONTEXT.md refreshed (methodology header, pilot gap marked resolved,
-  Sprint 2/3 results section appended).
-- **NEXT (highest leverage): backfill the 15 article-less months** (mostly
-  2025–26). `scrape_articles.py` END now extended to Jun 2026 — run
-  `python3 scrape_articles.py` 2–3× (GDELT rate limits), then
-  `python3 finbert_scoring.py && python3 analysis_v2.py`.
-
----
-
-## Automated audit run — 2026-06-14
-
-**Code audit (v2 pipeline) — no leakage bugs found.** Verified the predictive
-alignment is correct end-to-end:
-- RWDV `shift(H_RECOVERY)` correctly ensures the trailing window only contains
-  down-days whose recovery horizon is fully resolved by time T — no look-ahead.
-- Feature/label alignment is genuine lag-1: row `wk` carries features as of the
-  end of week `wk` and the target is the event in week `wk+1`.
-- 4-week sentiment smoothing uses only weeks `wk-3..wk` — no future leakage.
-
-**Two honest caveats (not bugs, design choices to disclose to the mentor):**
-- The decile thresholds `lo/hi` in `scar_labels` are full-sample quantiles, so the
-  out-of-sample test's *labels* are defined using the whole period. Defensible
-  ("extreme relative to the study window") but worth a footnote; a stricter OOS
-  would set the threshold on training data only.
-- The headline-table AUC is in-sample (optimistic); the separate OOS AUC line is
-  the honest discrimination number.
-
-**Root cause of weak significance confirmed:** the scraped corpus dead-stops at
-2025-01 — months 2025-02 → 2026-05 (16 months) have ZERO articles, while prices
-now run to Jun 2026. So extending prices added weeks with no sentiment, which the
-regression drops. Backfilling those months is the binding lever.
-
-**Backfill done + full re-run (honest result):** corpus now 2,382 articles,
-66/66 months covered, no gaps. Re-ran finbert_scoring → build_features_v2 →
-analysis_v2. The confirmation spec did **not** improve — it got slightly weaker:
-
-| | n | events | OR(sent) | p | in-samp AUC | OOS AUC |
-|---|---|---|---|---|---|---|
-| pre-backfill (200 wk, 2021–22-heavy) | 200 | 13 | 1.70 | 0.108 | 0.660 | 0.670 |
-| **full corpus 2021–26** | 269 | 17 | **1.533** | **0.139** | 0.642 | **0.590** |
-
-The earlier p≈0.108 was partly a small-sample artifact. On the complete data the
-euphoria-reversal direction (OR>1) persists but is NOT significant, and OOS AUC
-falls to ~0.59. This is the truthful state — do not report it as significant.
-
-**Interpretation (mentor-aligned, the real finding):** the signal was strong in
-the 2021–22 retail/chaos regime and faded as crypto institutionalised — a REGIME
-SHIFT, exactly what the mentor flagged ("3–4 regimes; how do you recognise the
-shift?"). Next honest step = one pre-specified regime-split test (2021–22 vs
-2023–26), reported either way. NOT spec-fishing for a star.
-
----
-
-## Sprint 2 step 1 — Firth penalized logistic regression (analysis_firth.py)
-
-Ran Firth (rare-event-correct, hand-implemented) on the confirmation spec.
-Result is **suggestive but NOT robust** — three p-values disagree:
-
-| test | sentiment p | sig? |
-|---|---|---|
-| ordinary logit (Wald) | 0.139 | no |
-| Firth penalized LR | **0.028** | yes (nominal) |
-| permutation (5,000) | 0.142 | no |
-
-Firth crosses 0.05 but the assumption-free permutation test does not confirm it.
-Cause: rolling-window predictors (`rwdv_63` 63-day, sentiment 4-week) are ~75–90%
-autocorrelated → effective n ≈ 40–70, not 269, so Firth's asymptotic χ² is too
-generous. **Do not report as significant.** Full write-up: `outputs/firth_results.md`.
-
-**Next:** (1) block-permutation / HAC correction for the autocorrelation, (2) the
-regime split (sprint2plan §3C) — most likely place a real within-regime effect lives.
-
----
-
-## Sprint 2 step 2 — regime split + block permutation (analysis_regime.py)
-
-Tested the regime hypothesis properly. **It is NOT supported, and the earlier
-"strong in 2021–22, faded later" claim above is RETRACTED — it was a subsample
-artifact, never a tested result.**
-
-| regime | n | ev | odds | p(Firth) | p(block, honest) |
-|---|---|---|---|---|---|
-| Full 2021–26 | 269 | 17 | 1.498 | 0.028 | **0.120** |
-| Early <2023 (retail/chaos) | 93 | 9 | 1.126 | 0.162 | **0.744** |
-| Late ≥2023 (institutional) | 176 | 8 | 1.671 | 0.050 | **0.161** |
-| sentiment×regime interaction | — | — | 1.206 | **0.217** | — |
-
-Block permutation (8-wk blocks, preserves autocorrelation) shows **nothing robustly
-significant** in any slice; the interaction is not significant (p=0.217) so there is
-**no statistical regime shift**. Early regime is the *weakest*, not strongest —
-opposite of the retracted narrative.
-
-**Standing conclusion after steps 1–2:** sentiment→scarring-crash is directionally
-consistent (odds ≈ 1.5, euphoria-reversal) but **not robust** under
-autocorrelation-aware testing — a genuine near-null. Contribution = methodology
-(RWDV, scar labels, Firth + block-permutation), not a significant p. Full write-up:
-`outputs/regime_results.md`.
-
----
-
-## Sprint 2 step 3 — Event study plan (NEXT; not yet built)
-
-The mentor's preferred low-event tool; its statistics do **not** depend on the
-17-event weekly logit, so it is the best remaining shot at a clean, independent
-significance result. `event_study.py` exists (Sprint 1) but is stale (≤2024 events,
-not re-run on the extended data). Build plan:
-
-**E0. Pre-register** the event list, windows, and tests before running (so it can't
-be called cherry-picked).
-
-**E1. Three testable questions**
-1. Do known shocks produce statistically significant abnormal returns (CAR ≠ 0)?
-2. Is the "good news → negative CAR" *sell-the-news* pattern real across events?
-3. Does **pre-event sentiment** relate to the subsequent CAR / recovery?
-
-**E2. Event selection (objective rule, not hand-picked).** Include every event meeting
-a pre-set criterion — a named exogenous catalyst (hack, exchange/stablecoin collapse,
-regulatory ruling, ETF, halving, macro risk-off) OR a weekly drawdown beyond the
-10th-percentile scar decile; include up *and* down.
-- Keep the 5: Ronin 2022-03-23, Terra/LUNA 2022-05-09, FTX 2022-11-11,
-  ETF approval 2024-01-10, halving 2024-04-20.
-- Add (verify exact dates before coding): 2024-08-05 global risk-off crash; 2024-11
-  US-election move; 2–3 events in 2025–H1 2026 by the same rule. Target ≥ 8–10 events.
-
-**E3. Abnormal-return model.** Keep mean-adjusted baseline; ADD a market-model variant
-(portfolio on QQQ / broad crypto index over [−120,−31]). Windows: estimation
-[−120,−31]; event [−10,+10]; also [−1,+1] (announcement) and [−10,+30] (drift/recovery).
-
-**E4. Statistics for few, fat-tailed events (key upgrade).** Parametric: cross-sectional
-t-test; variance-robust standardized tests (Patell, Boehmer–Musumeci–Poulsen). Non-
-parametric (essential): sign test, Corrado rank test. Bootstrap the average-CAR CI.
-Significant only when parametric AND non-parametric agree.
-
-**E5. Sentiment integration.** Regress each event's CAR on its pre-event sentiment
-(FinBERT [−10,−1]); test the slope (independent of the weekly logit). Test whether
-sentiment direction predicts CAR sign (sell-the-news vs buy-the-news).
-
-**E6. Recovery-time / downside lens (bridge to RWDV — mentor's hint).** Per event,
-measure time to recover 50% / 80% of the trough loss; decompose CAR into downside-only
-(Sortino/LPM); test whether pre-event sentiment predicts recovery time, not just CAR.
-
-**E7. Era comparison — DESCRIPTIVE ONLY.** Step 2 found no statistical regime shift
-(interaction p=0.217), so compare 2022-era vs 2024–26-era events qualitatively; make
-no regime-shift claim.
-
-**E8. Deliverables (results-file convention).** `outputs/event_study_car.png` (CAR
-paths, both models); `outputs/event_study.txt` (raw table: event, date, CAR by window,
-test stats, p, pre-sentiment, recovery days); `outputs/event_study.md` (interpretation
-only); a pre-event-sentiment vs CAR scatter (fitted line + slope p).
-
-**E9. Honesty guardrails.** Pre-registered list+windows; non-parametric alongside
-parametric; with ~10 events frame as suggestive corroboration, not proof; no
-regime-shift claim. Likely outcome: corroborates the descriptive findings rather than
-a strong significant result — and that's fine, per the mentor.
+**Status (Jun 2026):** Sprint 2 complete — original method built, honest near-null result.
+Sprint 3 (rigor + write-up) planned.
+
+## Where to look
+- **`improvement.md`** — the current **Sprint 3 plan** (walk-forward backtesting, nonlinear
+  extreme-loss recoding, QQQ+ARKF combined factor, stablecoin-depeg event study, and the
+  paper write-up). Start here for "what's next."
+- **`CONTEXT.md`** — methodology + full results history (v1 → Sprint 1 → Sprint 2/3).
+- **`sprint2_results.md`**, **`outputs/firth_results.md`**, **`outputs/regime_results.md`** —
+  the Sprint-2 result tables + interpretation (raw tables live in the matching `.txt`).
+- **`README.md`** — how to run the pipeline.
+
+## Current state (one paragraph)
+The pipeline is complete and data is full (2,382 articles, 66/66 months, prices to mid-2026).
+The original contribution is **RWDV** (recovery-weighted downside volatility) + **scar-event**
+labels + **FinBERT** sentiment + a multi-factor weekly logit (sentiment + RWDV + ARKF + QQQ),
+tested with **rare-event-correct statistics** (Firth + permutation + block-permutation). The
+result is an **honest near-null**: sentiment→scarring-crash odds ≈ 1.5 (suggestive,
+euphoria/sell-the-news direction) but **not robustly significant** (Firth p = 0.028 vs
+permutation/block p ≈ 0.12–0.14; out-of-sample AUC ≈ 0.6). The regime hypothesis was tested
+and **not** supported (interaction p = 0.217). Per the mentor, in this low-event domain the
+contribution is the **original method + rigorous, honest analysis**, not a forced p-value.
+
+## Next step
+Execute the Sprint 3 plan in `improvement.md` — priority before the Jul-1 mentor meeting:
+**true walk-forward backtesting** + start the paper's **Introduction/Background**.
+
+## Pipeline scripts
+`data_collection.py` → `scrape_articles.py` → `finbert_scoring.py` →
+`build_features_v2.py` → `analysis_v2.py` → `analysis_firth.py` → `analysis_regime.py`
+(+ legacy Sprint-1 monthly: `sentiment_scoring.py`, `event_definition.py`, `analysis.py`,
+`event_study.py`). Run with `python3`.
