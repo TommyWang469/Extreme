@@ -15,16 +15,12 @@
 
 - **FinBERT sentiment** replaces VADER — this is the sentiment *scorer* only; it does
   **not** change the number of extreme events.
-- **Weekly resolution** (instead of monthly) is the statistical-power fix: it raised the
-  extreme-event count from **6 (monthly v1) to 17**, ~3×, simply by giving far more time
-  buckets — together with the new scar-event label. (The event *rate* actually fell,
-  13% of months → 6.6% of weeks; only the raw count rose.)
 - **Invented RWDV — Recovery-Weighted Downside Volatility**, a literature-scan-verified
   *original* metric. It is a downside-only (lower-partial-moment) volatility in which
   RWDV weights every trading day by how stubbornly its losses persisted. Up-days are ignored entirely (it is a downside-only, "lower partial moment" measure), and each down-day is assigned a weight between 0.1 and 1.0 based on its recovery speed: starting from that day's one-day drop, we define a half-recovery target halfway back up (for example, a fall from 100 to 92 sets a target of 96), then look forward up to ten trading days to see how long the price takes to reach it. If it recovers the very next day the weight is just 1/10 = 0.1, if it takes five days the weight is 0.5, and if it never claws back half the loss within ten days the weight is capped at 1.0. 
   flash crashes that bounce back are nearly ignored, sustained declines count fully.
 - **Multi-factor weekly logistic regression**: 
-  Using four predictors together — FinBERT news sentiment (the variable under test), RWDV (our recovery-weighted downside volatility, to control for volatility clustering), ARKF (the ARK Fintech ETF's trailing return, the mentor's FinTech-sector proxy), and QQQ (the Nasdaq-100's trailing return, for broad tech-market risk appetite).
+  Using four predictors together — FinBERT news sentiment (the variable under test), RWDV (our recovery-weighted downside volatility, to control for volatility clustering), ARKF (the ARK Fintech ETF's trailing return), and QQQ (the Nasdaq-100's trailing return, for broad tech-market risk appetite).
 - **Extended the data** from end-2024 to **mid-2026** and **backfilled the article
   corpus** so every month is covered.
 - **Applied rare-event-correct statistics** 
