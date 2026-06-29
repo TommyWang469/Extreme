@@ -1,0 +1,29 @@
+============================================================================================
+WALK-FORWARD BACKTEST — weekly extreme-down logit (Sprint 3, Step 2)
+expanding window, one-step-ahead; train-only decile threshold AND normalization; exp. decay
+weeks usable: 269 | min train 60w / 4 events | half-life 104w | L2 C=1.0 | op threshold p>=0.5
+first OOS week 2022-06-17 → last 2026-05-15 | OOS weeks scored 205 | train decile lo range [-0.1289, -0.0912]
+============================================================================================
+
+OUT-OF-SAMPLE METRICS BY SPEC (one-step-ahead, all leak-free)
+  spec                                    OOSn  ev   base    AUC  PR-AUC   Brier   P@.5   R@.5    P@K    R@K
+  --------------------------------------------------------------------------------------------------------
+  C0 FinBERT-4w + RWDV + ARKF + QQQ        205   7  0.034  0.578   0.048   0.034   0.00   0.00   0.00   0.00
+  A1 FinBERT-4w alone                      205   7  0.034  0.584   0.048   0.034   0.00   0.00   0.00   0.00
+  A2 VADER-4w + RWDV + ARKF + QQQ          205   7  0.034  0.553   0.041   0.035   0.00   0.00   0.00   0.00
+  A3 controls only (no sentiment)          205   7  0.034  0.439   0.037   0.035   0.00   0.00   0.00   0.00
+  P@K/R@K = precision/recall when the K highest-probability weeks are flagged, K = #actual OOS events.
+
+LOOK-AHEAD OPTIMISM (primary spec C0)
+  in-sample, full-sample threshold + normalization (the OLD leaky number): AUC = 0.641
+  walk-forward, leak-free OOS                                            : AUC = 0.578
+  optimism removed by the harness                                        : +0.063
+
+DECAY HALF-LIFE SENSITIVITY (primary spec C0)
+  half-life(w)     AUC   PR-AUC    Brier
+            26   0.439    0.035    0.034
+            52   0.508    0.043    0.034
+           104   0.578    0.048    0.034
+           208   0.607    0.051    0.034
+      no decay   0.627    0.055    0.035
+============================================================================================

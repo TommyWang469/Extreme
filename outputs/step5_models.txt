@@ -1,0 +1,15 @@
+==========================================================================================
+STEP 5 — SEVERITY (richer continuous target) (Sprint 3)
+weekly BTC+ETH; n=262, events=17
+==========================================================================================
+
+SEVERITY — quantile regression of forward weekly return (coef per +1 SD)
+   quantile  sentiment_coef       p  news_vol_coef       p
+       0.05         -0.0190   0.065        -0.0295   0.007
+       0.10         -0.0084   0.280        -0.0245   0.001
+       0.25         -0.0026   0.701        -0.0128   0.043
+       0.50         -0.0081   0.170        -0.0065   0.223
+  (euphoria-reversal => NEGATIVE sentiment coef at low quantiles = worse tail loss)
+
+  [footnote] §1e gradient-boosted-tree benchmark: GBT OOS AUC 0.416 vs logit 0.716 — a nonlinear model does NOT beat the logit on this tiny sample (it overfits).
+==========================================================================================

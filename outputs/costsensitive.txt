@@ -1,0 +1,12 @@
+========================================================================================
+NEWS-VOLUME OUT-OF-SAMPLE CHECK (+ §1c footnote) — Sprint 3, Step 5
+leak-free walk-forward; does adding news volume to C0 improve honest OOS skill?
+========================================================================================
+
+VOLUME ADD-ON (C0 vs C0+volume, identical OOS weeks)
+  spec                OOSn  ev    AUC  PR-AUC   R@.5
+  C0                   201   8  0.479   0.047   0.00
+  C0 + news_volume     201   8  0.664   0.080   0.00
+
+  [footnote §1c] cost-sensitive class weighting on C0: AUC 0.578 (none) vs 0.587 (balanced) — trades precision for recall (recall@0.5 0.00 -> 0.71) with no ranking gain; a reporting dial, not skill.
+========================================================================================

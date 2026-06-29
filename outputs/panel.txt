@@ -1,0 +1,33 @@
+==========================================================================================
+PANEL LOGIT — sentiment -> scar-down across coins (Sprint 3, Step 3 / §G1)  [FinBERT]
+universe (fixed snapshot) + delisted LUNA | period 2021-01-01 → 2026-06-12
+==========================================================================================
+
+PART A — SHARED-SENTIMENT PANEL (the #1 power lever)
+COIN COVERAGE
+  ADA-USD      15 events / 269 wk
+  AVAX-USD     14 events / 269 wk
+  BNB-USD      13 events / 269 wk
+  BTC-USD      11 events / 269 wk
+  DOGE-USD     14 events / 269 wk
+  DOT-USD      19 events / 269 wk
+  ETH-USD      10 events / 269 wk
+  LINK-USD     14 events / 269 wk
+  LUNA1-USD    4 events / 81 wk
+  SOL-USD      14 events / 269 wk
+  XRP-USD      14 events / 269 wk
+  POOLED: 2771 coin-weeks, 142 events, 11 coins  (vs ~17 single-series)
+
+  SENTIMENT ODDS RATIO (per +1 SD), cluster-robust 95% CI
+  spec                                    n   ev coins     OR           95% CI       p
+  ----------------------------------------------------------------------------------
+  P1 coin-FE + cluster(coin)           2771  142    11  1.386 [ 1.15, 1.67]     0.001
+  P2 coin-FE + cluster(coin x week)    2771  142    11  1.386 [ 0.90, 2.13]     0.136
+  P3 no-FE  + cluster(coin)            2771  142    11  1.387 [ 1.15, 1.67]     0.001
+  reference: Sprint-2 single-series (BTC+ETH) sentiment OR = 1.70, p = 0.108
+
+------------------------------------------------------------------------------------------
+PART B — PER-COIN FinBERT TEST (condensed): does coin-specific news help?  No.
+  7 coins, 29964 coin-specific articles, 1532 coin-weeks, 75 events.
+  shared FinBERT OR 1.22 [0.80,1.86]  vs  per-coin OR 1.19 [0.64,2.22] (p=0.58)  →  per-coin CI no tighter, so no power gain.
+==========================================================================================

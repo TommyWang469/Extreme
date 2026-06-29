@@ -1,8 +1,12 @@
 # Project Handoff Note
 
 **Research:** Social Media Sentiment as a Predictor of Extreme Crypto Events
-**Status (Jun 2026):** Sprint 2 complete — original method built, honest near-null result.
-Sprint 3 (rigor + write-up) planned.
+**Status (Jun 2026):** Sprint 3 **Steps 1–5 done** + the per-coin news experiment. Modeling is
+complete; **Step 6** (economic-significance backtest + consolidated honest-null writeup) is next.
+Pre-registration frozen in `PREREGISTRATION.md`. Headline finding this sprint: **news
+attention/volume beats sentiment polarity** (volume significant in the severity model, p=0.001);
+the polarity-euphoria effect stays weak/underpowered everywhere. See `revision.md` for a
+plain-language recap of the session.
 
 ## Where to look
 - **`improvement.md`** — the current **Sprint 3 plan** (walk-forward backtesting, nonlinear
@@ -25,11 +29,19 @@ and **not** supported (interaction p = 0.217). Per the mentor, in this low-event
 contribution is the **original method + rigorous, honest analysis**, not a forced p-value.
 
 ## Next step
-Execute the Sprint 3 plan in `improvement.md` — priority before the Jul-1 mentor meeting:
-**true walk-forward backtesting** + start the paper's **Introduction/Background**.
+Sprint 3 **Step 6** in `improvement.md` §3: economic-significance backtest (a sentiment/volume
+risk-off rule → Sortino/Sharpe, drawdown avoided) + the consolidated honest null (odds-ratio CIs
++ minimum detectable effect). Then **pivot the paper headline to attention/volume**. Data levers
+that would actually move power (all deferred): go daily (§G2), extend BTC+ETH history to ~2017
+(§G9). Do **not** change the pre-registered primary spec.
 
 ## Pipeline scripts
-`data_collection.py` → `scrape_articles.py` → `finbert_scoring.py` →
-`build_features_v2.py` → `analysis_v2.py` → `analysis_firth.py` → `analysis_regime.py`
-(+ legacy Sprint-1 monthly: `sentiment_scoring.py`, `event_definition.py`, `analysis.py`,
-`event_study.py`). Run with `python3`.
+Base: `data_collection.py` → `scrape_articles.py` → `finbert_scoring.py` →
+`build_features_v2.py` → `analysis_v2.py` → `analysis_firth.py` → `analysis_regime.py`.
+**Sprint-3 (Steps 1→5):** `event_study.py` · `analysis_walkforward.py` · `analysis_power.py` ·
+`analysis_panel.py` · `analysis_identification.py` · `analysis_costsensitive.py` ·
+`analysis_step5_models.py`.
+**Per-coin experiment:** `scrape_news_percoin.py` → folded into `analysis_panel.py` Part B
+(FinBERT only; the separate VADER/FinBERT per-coin scripts were consolidated away).
+(+ legacy Sprint-1 monthly: `sentiment_scoring.py`, `event_definition.py`, `analysis.py`).
+Run with `python3`.

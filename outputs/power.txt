@@ -1,0 +1,40 @@
+====================================================================================
+POWER ANALYSIS — sentiment -> scar-down logit (Sprint 3, §G2/§G7)
+base rate p0 = 0.0659  (18 events / 273 weeks) | alpha=0.05 two-sided | target power=0.8 | sim reps=600
+====================================================================================
+
+REQUIRED INDEPENDENT N FOR 80% POWER (standardized sentiment predictor)
+     OR    sim N   Hsieh N
+    1.3     1928      1851
+    1.5      779       775
+    1.7      487       453
+    2.0      283       265
+
+MINIMUM DETECTABLE ODDS RATIO AT CURRENT WEEKLY N
+  current N = 273 weekly obs  ->  MDE OR (80% power) = 2.1
+  i.e. the real effect (OR ~ 1.5-1.7) is well below what 273 weeks can detect.
+
+PANEL TRANSLATION — coins needed once within-coin clustering is discounted
+  (weeks/coin = 273; design effect DE = 1 + (weeks/coin - 1)*ICC)
+     OR   ICC      DE  eff/coin  coins needed
+    1.5  0.00     1.0     273.0           2.9
+    1.5  0.05    14.6      18.7          41.7
+    1.5  0.10    28.2       9.7          80.5
+    1.5  0.20    55.4       4.9         158.1
+    1.7  0.00     1.0     273.0           1.8
+    1.7  0.05    14.6      18.7          26.0
+    1.7  0.10    28.2       9.7          50.3
+    1.7  0.20    55.4       4.9          98.8
+
+POWER CURVE (sim power vs independent N)
+       N OR 1.5 OR 1.7
+     100   0.16   0.23
+     200   0.28   0.44
+     300   0.38   0.62
+     500   0.59   0.82
+     800   0.83   0.96
+    1200   0.92   0.99
+    2000   0.99   1.00
+    3000   1.00   1.00
+    5000   1.00   1.00
+====================================================================================

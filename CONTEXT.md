@@ -278,6 +278,140 @@ ARKF 4-week return, QQQ 4-week return) — all at week w. FinBERT replaced VADER
   in this domain robust p-values are hard with ~13 events; the stable effect
   size + out-of-sample AUC ≈ 0.67 is the stronger evidence.
 - FinBERT beats VADER head-to-head (p 0.11 vs 0.40 on the same controls).
-- Remaining bottleneck: the article corpus covers only 50 of 65 months —
-  most gaps in 2025–26. Backfilling those months (re-run `scrape_articles.py`)
-  is the highest-leverage next step before any new modelling.
+- ~~Remaining bottleneck: the article corpus covers only 50 of 65 months.~~
+  **UPDATE (Sprint 3, 2026-06-22):** this is now resolved — `articles_scraped.csv`
+  covers **66 of 66 months** (2021-01 → 2026-06), 2,382 articles, median ~36/month.
+  Only the final month **2026-05 is thin (3 articles)**, which is GDELT recency lag,
+  not a gap. So article *coverage* is no longer the bottleneck; the open data levers
+  are now **per-coin news** (to unlock the panel) and **more events** (daily / longer
+  history), not back-filling months. See Step-4: news *volume* is the strongest predictor.
+
+# Sprint 3 — Event study + walk-forward harness (Jun 2026)
+
+*Execution order per `improvement.md` §3. Steps 1–2 done; Step 3 (panel + power) next.*
+
+## Step 1 — Event study (`event_study.py` → `outputs/event_study.{txt,md}`)
+
+Rebuilt on the full daily data (2021-01 → 2026-06) with proper few-event statistics.
+Two samples: **A) named exogenous catalysts** (9; China ban, Terra/UST de-peg,
+Celsius/3AC, FTX, USDC/SVB de-peg, carry unwind, ETF approval, halving, Trump win) —
+non-circular, used for inference; **B) scar-decile** (objective bottom/top-10% weekly
+returns, clustered; 17 down + 16 up) — used for recovery asymmetry + the sentiment
+regression, with the selection bias flagged. Five tests per window (Patell, BMP,
+generalized sign, Corrado-Zivney rank, bootstrap CI); significant only when a
+parametric **and** a non-parametric test agree at 5%.
+
+- **Post-event drift is null.** Named down-catalysts, window [+1,+10]: mean CAR −0.026,
+  bootstrap CI [−0.124,+0.094], no test significant. The crash is contemporaneous; no
+  robust continuation or rebound. Pre-event window [−10,−1] is significant (−0.127) —
+  these catalysts leaked/unfolded over days.
+- **Sell-the-news direction, weak.** CAR-on-sentiment slope negative (named −0.56,
+  decile-down −0.16) but not significant (perm p = 0.81 / 0.59). Same suggestive-not-
+  significant story as the logit.
+- **De-peg contrast (answers §1a's "how long does a depeg last"):** algorithmic
+  **Terra/UST never recovered** within 180 d (−41%); collateralized **USDC recovered
+  50%/80% in 3–4 d** with a positive post-event CAR (+0.235).
+- **Recovery asymmetry (RWDV bridge):** named downside events take ~53 d to recover
+  half the drawdown, ~76 d for 80%; 7 of 17 decile-down events don't recover 80% in 180 d.
+
+## Step 2 — Walk-forward harness (`analysis_walkforward.py` → `outputs/walkforward.{txt,md}`)
+
+Closes the two look-ahead leaks in the Sprint-2 pipeline: the **scar decile threshold**
+(was full-sample) and **feature normalization** (was full-sample) are now computed on the
+**training window only**. Single 2022 split → expanding-window, one-step-ahead refit with
+exponential decay. 205 OOS weeks (2022-06 → 2026-05), 7 events.
+
+| spec | OOS AUC | PR-AUC | note |
+|---|---|---|---|
+| C0 FinBERT-4w + RWDV + ARKF + QQQ | 0.578 | 0.048 | primary |
+| A1 FinBERT-4w alone | 0.584 | 0.048 | ≈ full model |
+| A2 VADER-4w + controls | 0.553 | 0.041 | FinBERT > VADER again |
+| A3 controls only (no sentiment) | **0.439** | 0.037 | below chance |
+
+- **Look-ahead optimism = +0.063 AUC** (in-sample leaky 0.641 → leak-free 0.578); the
+  leak-free number matches the prior ~0.6.
+- **Sentiment carries all of the (weak) signal:** C0 − A3 = +0.139 AUC; FinBERT-alone
+  matches the full model, so RWDV/ARKF/QQQ add nothing out-of-sample.
+- **Exponential decay hurts:** AUC rises monotonically with half-life (26w 0.439 →
+  no-decay 0.627). With ~17 events the data wants long memory; reported the sensitivity
+  curve, did not tune to the best.
+- **No sharp-end value:** precision@K = 0 — the highest-probability weeks miss every
+  crash. AUC > 0.5 is mid-ranking skill, not a usable trigger (matters for Step 6).
+- Harness is frequency/panel-agnostic — daily (§G2) or a coin panel (§G1) drop into the
+  same loop for Step 3.
+
+## Step 3 — Panel of coins + power analysis (§G1–G2)
+
+**Power analysis** (`analysis_power.py` → `outputs/power.{txt,md}`). At the observed base rate
+~0.065, the weekly single series has a **minimum detectable OR ≈ 2.1** (80% power) — far above
+the real ~1.5–1.7. Detecting OR 1.5 needs **≈ 779 independent obs** (~3× current); the panel
+would need **≈ 42 coins at ICC 0.05** (~80 at 0.10). So the Sprint-2 non-significance is
+largely a **power problem, not a null** (§G7).
+
+**Panel logit** (`analysis_panel.py` → `outputs/panel.{txt,md}`). 11 coins incl. delisted LUNA
+(survivorship-corrected), **142 scar-down events** (vs ~17 single-series). Sentiment OR **1.39**
+— same euphoria / sell-the-news direction as Sprint-2's 1.70.
+
+- Honest SE is **two-way clustered (coin × week)**: CI **[0.90, 2.13], p = 0.136** → per the
+  pre-reg decision rule this is **qualified support — suggestive, underpowered, not confirmation
+  and not a null.**
+- The by-coin-only CI [1.15, 1.67], p = 0.001 is a **Moulton trap**: sentiment is one *shared*
+  time series, so by-coin clustering treats the same path as 11 independent draws. Do not report
+  that p as the headline.
+- **Key finding:** the panel does **not** escape the power ceiling for the *shared* sentiment
+  regressor — its effective N stays ~the number of weeks (~269), not coin-weeks (~2771). More
+  coins help coin-varying predictors (RWDV, crash frequency) but not the shared-sentiment link.
+  **The real unlock is per-coin sentiment.**
+- Pre-registration frozen in `PREREGISTRATION.md` before this step ran.
+
+## Step 4 — Identification: momentum control (§G3)  [trimmed]
+
+`analysis_identification.py` → `outputs/identification.{txt,md}`. **Trimmed (2026-06) to the
+one load-bearing check — the momentum control** (answers the reviewer's "isn't your sentiment
+just price momentum?"):
+
+- **Not a momentum proxy.** Sentiment OR 1.53 is unchanged after adding lagged 1-week and
+  trailing-4-week returns; momentum itself is not significant. Sentiment carries information
+  independent of recent price action.
+
+*Removed to keep the project lean:* the **lead-lag / Granger** test (it found sentiment mostly
+*lags* returns on the mean — but that's the wrong test for a *tail* claim) and the
+**volume/disagreement** predictors. The **news-volume finding is preserved and stronger**
+elsewhere: severity model `outputs/step5_models.*` (p=0.001) and the walk-forward volume add-on
+`outputs/costsensitive.*`. (Disagreement was a flat null.)
+
+## Per-coin news experiment (§G1 unlock — tested, did NOT unlock)
+
+To break the shared-sentiment Moulton ceiling, scraped **coin-specific** GDELT news for 7 coins
+(`scrape_news_percoin.py` → `data/articles_percoin.csv`, ~30k articles after a gap-fill re-run),
+then re-ran the panel with per-coin sentiment, holding the scorer constant.
+
+Now consolidated into **`analysis_panel.py` Part B** (FinBERT only; output in `outputs/panel.*`).
+The interim VADER per-coin run was null (OR 0.89) but VADER on short headlines is noisy, so it
+was **retired**. The **FinBERT per-coin** result (scores cached in
+`data/articles_percoin_finbert.csv`): partial coverage OR 0.94, but after the gap-fill
+**OR 1.19 ≈ shared 1.22** — same weak euphoria direction, CI *wider* not tighter.
+- **Conclusion:** per-coin news did **not** unlock extra power; per-coin estimates are
+  coverage-sensitive and noisy at this N. Can't separate market-wide from coin-specific — both
+  ~1.2, both non-significant. The binding constraint is **events/power, not sentiment
+  construction**. (My interim "settled: market-wide" claim was overturned by the gap-fill — a
+  lesson in not trusting a single underpowered run.)
+
+## Step 5 — Models on the credible setup (§1c, §G4, §1e, §1d)
+
+- **News-volume OOS check** (`analysis_costsensitive.py` → `outputs/costsensitive.*`): adding news
+  volume to C0 lifts the leak-free walk-forward **AUC 0.479→0.664** — the project's **strongest
+  volume evidence** (the severity finding confirmed out-of-sample). *Slimmed (2026-06):* the §1c
+  class-weighting experiment (no ranking gain; trades precision for recall) is now a one-line
+  footnote, not a result.
+- **§G4 severity** (`analysis_step5_models.py` → `outputs/step5_models.*`): in the quantile
+  (severity) regression **news volume is significant at the tail (coef −0.025, p=0.001 at q=0.10;
+  also sig. at q=0.05 and 0.25)** while polarity is borderline — the continuous target is what let
+  volume reach significance (in-sample; also survives the walk-forward). *Trimmed (2026-06):* the
+  GBT benchmark (§1e — doesn't beat the logit) is a one-line footnote; the null hazard model and
+  the GARCH-EVT tail model (§1d) were **dropped** to keep the project lean (GARCH-EVT was a working
+  result — fat tails + calibrated VaR — but the most tangential to the sentiment hypothesis).
+
+**Cross-cutting result of Steps 4–5:** across the logit, the volume OOS check, the severity model,
+and the tree importance, **news attention/volume — not sentiment polarity — is the predictor that
+survives**, and it reaches significance only with a richer (continuous) target.

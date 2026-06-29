@@ -1,0 +1,11 @@
+================================================================================
+IDENTIFICATION — momentum control (Sprint 3, Step 4 / §G3)
+weekly BTC+ETH; logistic scar-down model; OR per +1 SD with p in parentheses
+================================================================================
+
+Does the sentiment OR survive controlling for lagged returns?
+  spec                                n  ev   sentiment      mom_1w      mom_4w    McF
+  base: sent + controls             269  17  1.53(0.14)           -           -  0.025
+  + momentum (mom_1w, mom_4w)       267  17  1.53(0.14)  1.34(0.37)  1.15(0.71)  0.038
+  -> sentiment OR 1.53 -> 1.53 after momentum (change -0.00)
+================================================================================
